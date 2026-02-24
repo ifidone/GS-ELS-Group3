@@ -1,0 +1,27 @@
+# ========================
+# IntelliJ
+# ========================
+.idea/
+*.iml
+*.iws
+out/
+
+# ========================
+# Backend (Spring Boot)
+# ========================
+backend/target/
+backend/.mvn/
+backend/*.log
+
+# ========================
+# Frontend (Angular)
+# ========================
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db

@@ -1,5 +1,6 @@
 package com.els.backend;
 
+import com.els.backend.service.BetaService;
 import com.els.backend.service.NewtonService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -11,5 +12,8 @@ public class BackendApplication {
         SpringApplication.run(BackendApplication.class, args);
         double res = NewtonService.getExpectedReturn("VFIAX");
         System.out.println("Expected Value for VFIAX: " + res);
+
+        double beta = BetaService.getBeta("VFIAX");
+        System.out.println("Beta Value for VFIAX: " + beta);
     }
 }

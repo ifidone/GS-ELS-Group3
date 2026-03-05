@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -11,7 +11,18 @@ import {
   signOut,
   User,
 } from '@angular/fire/auth';
-import { Firestore, doc, setDoc, serverTimestamp } from '@angular/fire/firestore';
+import { Firestore, addDoc, collection, limit, doc, onSnapshot, orderBy, query, setDoc, serverTimestamp } from '@angular/fire/firestore';
+
+type ProjectionHistoryItem = {
+  id: string;
+  fund: string;
+  beta: number;
+  expectedReturn: number;
+  futureValue: string;
+  investment: number;
+  years: number;
+  createdAt: Date | null;
+};
 
 @Component({
   selector: 'app-root',
@@ -20,11 +31,14 @@ import { Firestore, doc, setDoc, serverTimestamp } from '@angular/fire/firestore
   templateUrl: './calculator.html',
   styleUrl: './calculator.css',
 })
-export class CalculatorComponent {
+export class CalculatorComponent implements OnDestroy {
   private auth = inject(Auth);
   private firestore = inject(Firestore);
 
   currentUser = signal<User | null>(null);
+  history = signal<ProjectionHistoryItem[]>([]);
+
+  private unsubscribeHistory: (() => void) | null = null;
 
   constructor() {
     authState(this.auth).subscribe((user) => {
@@ -32,8 +46,16 @@ export class CalculatorComponent {
       this.showAuthModal = !user;
       if (user) {
         this.upsertUserDoc(user);
+        this.startHistoryListener(user.uid);
+      } else {
+        this.stopHistoryListener();
+        this.history.set([]);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.stopHistoryListener();
   }
 
   private async upsertUserDoc(user: User) {
@@ -50,6 +72,59 @@ export class CalculatorComponent {
       );
     } catch (e) {
       console.error('Failed to store user data', e);
+    }
+  }
+
+  private stopHistoryListener() {
+    if (this.unsubscribeHistory) {
+      this.unsubscribeHistory();
+      this.unsubscribeHistory = null;
+    }
+  }
+
+  private startHistoryListener(uid: string) {
+    this.stopHistoryListener();
+
+    const historyRef = collection(this.firestore, 'users', uid, 'projectionHistory');
+    const historyQuery = query(historyRef, orderBy('createdAt', 'desc'), limit(20));
+
+    this.unsubscribeHistory = onSnapshot(historyQuery, (snapshot) => {
+      const rows: ProjectionHistoryItem[] = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as any;
+        return {
+          id: docSnap.id,
+          fund: data.fund,
+          beta: data.beta,
+          expectedReturn: data.expectedReturn,
+          futureValue: data.futureValue,
+          investment: data.investment,
+          years: data.years,
+          createdAt: data.createdAt?.toDate?.() ?? null,
+        };
+      });
+
+      this.history.set(rows);
+    });
+  }
+
+  private async saveProjectionToHistory(
+    uid: string,
+    payload: {
+      fund: string;
+      beta: number;
+      expectedReturn: number;
+      futureValue: string;
+      investment: number;
+      years: number;
+    }
+  ) {
+    try {
+      await addDoc(collection(this.firestore, 'users', uid, 'projectionHistory'), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+    } catch (e) {
+      console.error('Failed to save projection history', e);
     }
   }
 
@@ -164,5 +239,16 @@ export class CalculatorComponent {
       expectedReturn,
       futureValue: futureValue.toFixed(2)
     };
+    const user = this.currentUser();
+    if (user) {
+      void this.saveProjectionToHistory(user.uid, {
+        fund: ticker, 
+        beta,
+        expectedReturn,
+        futureValue: futureValue.toFixed(2),
+        investment,
+        years: time,
+      });
+    }
   }
 }

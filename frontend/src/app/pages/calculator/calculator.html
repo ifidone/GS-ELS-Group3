@@ -108,6 +108,17 @@
             </div>
           </div>
         </div>
+          <div *ngIf="currentUser() && history().length" class = "results history-results">
+            <h2>Past calculations</h2>
+
+            <div *ngFor="let item of history()">
+              <div class="results-label">
+                {{ item.fund }} · {{ item.investment | currency:'USD':'symbol':'1.0-0' }} · {{item.years}}y
+                <span *ngIf="item.createdAt"> · {{ item.createdAt | date:'short' }}</span>
+              </div>
+              <div class="results-value">${{ item.futureValue }}</div>
+            </div>
+          </div>
       </div>
     </section>
   </main>

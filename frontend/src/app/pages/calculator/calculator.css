@@ -656,3 +656,6 @@ input::placeholder {
   }
 }
 
+.history-results {
+  margin-top: 14px;
+}

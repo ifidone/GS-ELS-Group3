@@ -50,14 +50,16 @@
         </div>
 
         <div class="form-grid">
-          <div class="field">
+          <div class="field field-select">
             <label>Select Mutual Fund</label>
-            <select #fundSelect>
-              <option value="">Select fund</option>
-              <option *ngFor="let fund of funds" [value]="fund.ticker">
-                {{ fund.name }} ({{ fund.ticker }})
-              </option>
-            </select>
+            <div class="select-wrap">
+              <select #fundSelect>
+                <option value="">Select fund</option>
+                <option *ngFor="let fund of funds" [value]="fund.ticker">
+                  {{ fund.name }} ({{ fund.ticker }})
+                </option>
+              </select>
+            </div>
           </div>
 
           <div class="field">

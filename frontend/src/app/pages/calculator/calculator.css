@@ -283,6 +283,10 @@
   min-width: 0;
 }
 
+.select-wrap {
+  position: relative;
+}
+
 label {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
@@ -321,13 +325,28 @@ select {
   appearance: none;
 }
 
+.field-select select {
+  padding-right: 34px;
+}
+
+.select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
 select option,
 input::placeholder {
   color: #ffffff;
 }
 
 input::placeholder {
-  opacity: 0.9;
+  opacity: 0.7;
 }
 
 .btn-calc {

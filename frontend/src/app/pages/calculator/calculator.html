@@ -1,0 +1,233 @@
+<div class="layout">
+  <header class="nav">
+    <div class="brand">
+      <div>
+        <div class="brand-text-main">GS Portfolio Lab</div>
+        <div class="brand-text-sub">Mutual fund scenario engine</div>
+      </div>
+    </div>
+    <div class="nav-actions">
+      @if (currentUser(); as user) {
+        <div class="user-menu">
+          @if (user.photoURL) {
+            <img
+              [src]="user.photoURL"
+              [alt]="user.displayName || user.email || 'Profile'"
+              class="user-avatar"
+              referrerpolicy="no-referrer"
+            />
+          } @else {
+            <span class="user-avatar user-avatar-initial">{{ userInitial(user) }}</span>
+          }
+          <button class="btn btn-ghost btn-logout" type="button" (click)="logout()">Log out</button>
+        </div>
+      } @else {
+        <button class="btn btn-ghost" type="button" (click)="openAuth('login')">Log in</button>
+        <button class="btn btn-primary" type="button" (click)="openAuth('signup')">Sign up</button>
+      }
+    </div>
+  </header>
+
+  <main class="hero">
+    <section>
+      <div class="hero-copy-eyebrow">Goldman Sachs inspired</div>
+      <h1 class="hero-title">
+        Model your
+        <span class="hero-highlight">mutual fund outcomes</span>
+        with desk‑grade clarity.
+      </h1>
+      <p class="hero-subtitle">
+        Explore how different allocations, horizons, and risk levels could play out over time.
+        Designed to feel like an internal Goldman Sachs tool.
+      </p>
+    </section>
+
+    <section class="glass-card">
+      <div class="glass-inner">
+        <div class="card-header">
+          <div class="card-title">Mutual Fund Calculator</div>
+          <div class="card-badge">Beta model · 8% expected</div>
+        </div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Select Mutual Fund</label>
+            <select #fundSelect>
+              <option value="">Select fund</option>
+              <option *ngFor="let fund of funds" [value]="fund.ticker">
+                {{ fund.name }} ({{ fund.ticker }})
+              </option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Initial Investment (USD)</label>
+            <input type="number" #amountInput placeholder="25,000" />
+          </div>
+
+          <div class="field">
+            <label>Duration (Years)</label>
+            <input type="number" #timeInput placeholder="10" />
+          </div>
+        </div>
+
+        <div style="margin-top: 14px;">
+          <button
+            class="btn-calc"
+            type="button"
+            (click)="calculate(fundSelect.value, amountInput.value, timeInput.value)"
+          >
+            Run projection
+          </button>
+        </div>
+
+        <div *ngIf="result" class="results">
+          <h2>Projection summary</h2>
+
+          <div>
+            <div class="results-label">Fund</div>
+            <div class="results-value">{{ result.fund }}</div>
+          </div>
+
+          <div>
+            <div class="results-label">Beta</div>
+            <div class="results-value">{{ result.beta }}</div>
+          </div>
+
+          <div>
+            <div class="results-label">Expected return</div>
+            <div class="results-value">{{ result.expectedReturn * 100 }}%</div>
+          </div>
+
+          <div>
+            <div class="results-label">Projected future value</div>
+            <div class="results-value">
+              ${{ result.futureValue }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="auth-overlay" *ngIf="showAuthModal">
+  <div class="auth-modal">
+    <button
+      class="auth-close"
+      type="button"
+      aria-label="Close authentication dialog"
+      (click)="closeAuth()"
+    >
+      ✕
+    </button>
+
+    <div class="auth-header">
+      <div class="auth-title">
+        {{ authMode === 'login' ? 'Welcome back' : 'Create access' }}
+      </div>
+      <div class="auth-subtitle">
+        {{ authMode === 'login'
+          ? 'Sign in with email or Google to sync scenarios and portfolios.'
+          : 'Open an account with email or Google to save runs and collaborate.' }}
+      </div>
+    </div>
+
+    <button class="btn-google" type="button" (click)="continueWithGoogle()">
+      <span class="btn-google-icon">G</span>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-divider">
+      <span class="auth-divider-line"></span>
+      <span class="auth-divider-text">or continue with email</span>
+      <span class="auth-divider-line"></span>
+    </div>
+
+    <div class="auth-tabs">
+      <button
+        class="auth-tab"
+        type="button"
+        [class.active]="authMode === 'login'"
+        (click)="openAuth('login')"
+      >
+        Log in
+      </button>
+      <button
+        class="auth-tab"
+        type="button"
+        [class.active]="authMode === 'signup'"
+        (click)="openAuth('signup')"
+      >
+        Sign up
+      </button>
+    </div>
+
+    <form class="auth-form" (ngSubmit)="submitAuth()">
+      <ng-container [ngSwitch]="authMode">
+        <ng-container *ngSwitchCase="'login'">
+          <div class="field">
+            <input
+              type="email"
+              name="loginEmail"
+              autocomplete="email"
+              placeholder="Email"
+              [(ngModel)]="loginEmail"
+            />
+          </div>
+
+          <div class="field">
+            <input
+              type="password"
+              name="loginPassword"
+              autocomplete="current-password"
+              placeholder="Password"
+              [(ngModel)]="loginPassword"
+            />
+          </div>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'signup'">
+          <div class="field">
+            <input
+              type="text"
+              name="signupName"
+              autocomplete="name"
+              placeholder="Full name"
+              [(ngModel)]="signupName"
+            />
+          </div>
+
+          <div class="field">
+            <input
+              type="email"
+              name="signupEmail"
+              autocomplete="email"
+              placeholder="Email"
+              [(ngModel)]="signupEmail"
+            />
+          </div>
+
+          <div class="field">
+            <input
+              type="password"
+              name="signupPassword"
+              autocomplete="new-password"
+              placeholder="Password"
+              [(ngModel)]="signupPassword"
+            />
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <button class="btn btn-primary btn-primary-auth" type="submit">
+        {{ authMode === 'login' ? 'Continue' : 'Create account' }}
+      </button>
+    </form>
+
+    <div *ngIf="authErrorMessage" class="auth-error">
+      {{ authErrorMessage }}
+    </div>
+
+  </div>
+</div>

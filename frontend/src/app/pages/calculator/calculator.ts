@@ -240,6 +240,7 @@ export class CalculatorComponent implements OnDestroy {
 
     const investment = Number(amount);
     const time = Number(years);
+    if (!Number.isFinite(investment) || !Number.isFinite(time)) return;
     if (investment <= 0 || time <= 0) return;
 
     try {

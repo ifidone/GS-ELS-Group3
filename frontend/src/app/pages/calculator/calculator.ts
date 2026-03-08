@@ -1,6 +1,8 @@
 import { Component, OnDestroy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import {
   Auth,
   authState,
@@ -12,6 +14,7 @@ import {
   User,
 } from '@angular/fire/auth';
 import { Firestore, addDoc, collection, limit, doc, onSnapshot, orderBy, query, setDoc, serverTimestamp } from '@angular/fire/firestore';
+import { environment } from '../../../environment';
 
 type ProjectionHistoryItem = {
   id: string;
@@ -24,6 +27,15 @@ type ProjectionHistoryItem = {
   createdAt: Date | null;
 };
 
+type CalculatorProjectionResponse = {
+  ticker: string;
+  initialInvestment: number;
+  years: number;
+  beta: number;
+  expectedReturn: number;
+  futureValue: number;
+};
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -34,6 +46,8 @@ type ProjectionHistoryItem = {
 export class CalculatorComponent implements OnDestroy {
   private auth = inject(Auth);
   private firestore = inject(Firestore);
+  private http = inject(HttpClient);
+  private readonly calculatorApiUrl = `${environment.apiBaseUrl}/api/calculator/project`;
 
   currentUser = signal<User | null>(null);
   history = signal<ProjectionHistoryItem[]>([]);
@@ -221,34 +235,41 @@ export class CalculatorComponent implements OnDestroy {
     return name ? name.charAt(0).toUpperCase() : '?';
   }
 
-  calculate(ticker: string, amount: string, years: string) {
+  async calculate(ticker: string, amount: string, years: string) {
     if (!ticker || !amount || !years) return;
 
     const investment = Number(amount);
     const time = Number(years);
+    if (investment <= 0 || time <= 0) return;
 
-    const beta = 1.1;
-    const expectedReturn = 0.08;
+    try {
+      const response = await firstValueFrom(
+        this.http.post<CalculatorProjectionResponse>(this.calculatorApiUrl, {
+          ticker,
+          initialInvestment: investment,
+          years: time,
+        })
+      );
 
-    const futureValue =
-      investment * Math.pow(1 + expectedReturn, time);
-
-    this.result = {
-      fund: ticker,
-      beta,
-      expectedReturn,
-      futureValue: futureValue.toFixed(2)
-    };
-    const user = this.currentUser();
-    if (user) {
-      void this.saveProjectionToHistory(user.uid, {
-        fund: ticker, 
-        beta,
-        expectedReturn,
-        futureValue: futureValue.toFixed(2),
-        investment,
-        years: time,
-      });
+      this.result = {
+        fund: response.ticker,
+        beta: response.beta,
+        expectedReturn: response.expectedReturn,
+        futureValue: response.futureValue.toFixed(2),
+      };
+      const user = this.currentUser();
+      if (user) {
+        void this.saveProjectionToHistory(user.uid, {
+          fund: response.ticker,
+          beta: response.beta,
+          expectedReturn: response.expectedReturn,
+          futureValue: response.futureValue.toFixed(2),
+          investment,
+          years: time,
+        });
+      }
+    } catch (error) {
+      console.error('Calculator API error', error);
     }
   }
 }

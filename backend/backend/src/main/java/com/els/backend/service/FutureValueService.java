@@ -13,12 +13,12 @@ public class FutureValueService {
      * r (capmRate) = riskFreeRate + beta * (expectedReturnRate - riskFreeRate)
      * FV = principal * e^(r * timeYears)
      */
-    public static double computeFutureValue(String ticker, double principal, double timeYears) {
+    public static FutureValueComputation computeFutureValue(String ticker, double principal, double timeYears) {
         String t = normalizeTicker(ticker);
 
         // Basic validation
         if (t.isEmpty() || principal <= 0 || timeYears <= 0) {
-            return 0.00;
+            return new FutureValueComputation(0.00, 0.00, 0.00);
         }
 
         // 1) Beta from Newton stock-beta API (returned as "data")
@@ -31,11 +31,19 @@ public class FutureValueService {
         double capmRate = RISK_FREE_RATE + beta * (expectedReturnRate - RISK_FREE_RATE);
 
         // 4) Future value: FV = principal * e^(r * timeYears)
-        return principal * Math.exp(capmRate * timeYears);
+        double futureValue = principal * Math.exp(capmRate * timeYears);
+        return new FutureValueComputation(beta, expectedReturnRate, futureValue);
     }
 
     // // Clean ticker input (null-safe, trim spaces, uppercase)
     private static String normalizeTicker(String ticker) {
         return (ticker == null) ? "" : ticker.trim().toUpperCase();
+    }
+
+    public record FutureValueComputation(
+            double beta,
+            double expectedReturn,
+            double futureValue
+    ) {
     }
 }

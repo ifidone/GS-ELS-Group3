@@ -1,0 +1,20 @@
+<div class="chatbot-container" *ngIf="isOpen">
+
+  <div class="chat-header">
+    Mutual Fund Assistant
+  </div>
+
+  <div class="chat-body">
+    <div *ngFor="let msg of messages">
+      <b>{{msg.sender}}:</b> {{msg.text}}
+    </div>
+  </div>
+
+  <div class="chat-input">
+    <input [(ngModel)]="userInput" placeholder="Ask about mutual funds..." />
+    <button (click)="sendMessage()">Send</button>
+  </div>
+
+</div>
+
+<button class="chatbot-button" (click)="toggleChat()">💬</button>

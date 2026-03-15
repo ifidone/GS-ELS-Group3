@@ -1,0 +1,55 @@
+:host {
+  display: block;
+}
+
+.dashboard-home {
+  display: grid;
+}
+
+.hero-card {
+  max-width: 760px;
+  padding: 32px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(111, 143, 184, 0.9));
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(148, 163, 184, 0.35),
+    0 0 0 0.5px rgba(255, 255, 255, 0.1) inset;
+  backdrop-filter: blur(24px);
+}
+
+.hero-eyebrow {
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #ffffff;
+}
+
+.hero-card h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+.hero-card p {
+  margin: 0 0 24px;
+  max-width: 40rem;
+  line-height: 1.65;
+  color: #ffffff;
+}
+
+.hero-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 180px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6f8fb8;
+  text-decoration: none;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
+}

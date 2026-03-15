@@ -19,13 +19,14 @@ export class AuthFacade {
   private readonly auth = inject(Auth);
   private readonly http = inject(HttpClient);
   private readonly authSyncUrl = `${environment.apiBaseUrl}/api/auth/sync`;
+  private readonly enableBackendAuthSync = environment.enableBackendAuthSync;
 
   readonly currentUser = signal<User | null>(null);
 
   constructor() {
     authState(this.auth).subscribe((user) => {
       this.currentUser.set(user);
-      if (user) {
+      if (user && this.enableBackendAuthSync) {
         void this.syncAuthenticatedUser(user);
       }
     });

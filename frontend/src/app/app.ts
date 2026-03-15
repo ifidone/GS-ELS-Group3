@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { AuthFacade } from './core/auth.facade';
 import { ChatbotComponent } from './pages/chatbot/chatbot';
 
 @Component({
@@ -7,8 +8,13 @@ import { ChatbotComponent } from './pages/chatbot/chatbot';
   standalone: true,
   imports: [RouterOutlet, ChatbotComponent],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
 })
 export class App {
+  private readonly authFacade = inject(AuthFacade);
   protected readonly title = signal('frontend');
+
+  constructor() {
+    this.authFacade;
+  }
 }

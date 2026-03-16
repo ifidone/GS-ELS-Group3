@@ -40,10 +40,10 @@ Implemented:
 - Firebase ID token verification
 - verified Firebase user data returned
 - Firebase Admin initializes lazily (only when `/api/auth/sync` is called)
+- first-time user insert into PostgreSQL (`users` table)
 
 Not implemented yet:
-- PostgreSQL user upsert
-- database-backed user sync
+- user updates on subsequent logins (only insert-if-missing is implemented)
 - protected backend resource ownership using PostgreSQL user records
 
 ### Main Endpoint
@@ -73,8 +73,8 @@ POST /api/auth/sync
   "displayName": "User Name",
   "photoUrl": "https://...",
   "authProvider": "google.com",
-  "syncStatus": "pending",
-  "message": "Verified Firebase user accepted. PostgreSQL sync is not wired yet.",
+  "syncStatus": "created",
+  "message": "Verified Firebase user created in PostgreSQL.",
   "error": null
 }
 ```
@@ -86,6 +86,7 @@ POST /api/auth/sync
 - backend verifies Firebase token
 - backend extracts verified uid
 - backend compares request uid with verified uid (optional)
+- backend inserts the user row if missing
 - backend returns success response
 
 ### Why Verification Is Required

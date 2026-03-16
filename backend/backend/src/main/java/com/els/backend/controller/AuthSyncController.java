@@ -3,6 +3,8 @@ package com.els.backend.controller;
 import com.els.backend.service.FirebaseAuthResponse;
 import com.els.backend.service.FirebaseAuthService;
 import com.google.firebase.auth.FirebaseAuthException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @CrossOrigin(origins = "${app.frontend-origin}")
 public class AuthSyncController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthSyncController.class);
     private final FirebaseAuthService firebaseAuthService;
 
     public AuthSyncController(FirebaseAuthService firebaseAuthService) {
@@ -31,6 +34,7 @@ public class AuthSyncController {
     ) {
         String idToken = extractBearerToken(authorizationHeader);
         if (idToken == null) {
+            logger.warn("Auth sync rejected: missing or invalid Authorization header");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                     FirebaseAuthResponse.error("Missing or invalid Authorization header.")
             );
@@ -41,6 +45,7 @@ public class AuthSyncController {
 
             if (request != null && request.uid() != null && !request.uid().isBlank()
                     && !verifiedUser.uid().equals(request.uid().trim())) {
+                logger.warn("Auth sync rejected: request uid does not match verified uid");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                         FirebaseAuthResponse.error("Request uid does not match verified Firebase uid.")
                 );
@@ -56,8 +61,10 @@ public class AuthSyncController {
             response.setSyncStatus("pending");
             response.setMessage("Verified Firebase user accepted. PostgreSQL sync is not wired yet.");
 
+            logger.info("Auth sync verified user uid={} provider={}", verifiedUser.uid(), verifiedUser.authProvider());
             return ResponseEntity.ok(response);
         } catch (FirebaseAuthException exception) {
+            logger.warn("Auth sync failed: token verification error", exception);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                     FirebaseAuthResponse.error("Firebase token verification failed: " + exception.getMessage())
             );

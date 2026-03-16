@@ -12,6 +12,7 @@ out/
 backend/target/
 backend/.mvn/
 backend/*.log
+backend/backend/gs-els-firebase-adminsdk-fbsvc-affd4b34f3.json
 
 # ========================
 # Frontend (Angular)

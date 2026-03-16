@@ -1,4 +1,4 @@
 export const environment = {
   apiBaseUrl: 'http://localhost:8080',
-  enableBackendAuthSync: false,
+  enableBackendAuthSync: true,
 };

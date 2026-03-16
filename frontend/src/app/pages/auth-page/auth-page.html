@@ -1,0 +1,128 @@
+<div class="auth-page">
+  <section class="auth-copy">
+    <div class="auth-eyebrow">Goldman Sachs inspired</div>
+    <h1>
+      Enter the
+      <span class="auth-highlight">protected dashboard</span>
+      with one secure sign-in.
+    </h1>
+    <p>
+      Firebase handles authentication and identity. Once signed in, the frontend syncs your
+      Firebase `uid` to the backend and unlocks every protected page inside the dashboard shell.
+    </p>
+  </section>
+
+  <section class="auth-card">
+    <div class="auth-header">
+      <div class="auth-title">
+        {{ authMode === 'login' ? 'Welcome back' : 'Create access' }}
+      </div>
+      <div class="auth-subtitle">
+        {{ authMode === 'login'
+          ? 'Sign in with email or Google to continue into the dashboard.'
+          : 'Create an account with email or Google to start using protected tools.' }}
+      </div>
+    </div>
+
+    <button class="btn-google" type="button" (click)="continueWithGoogle()">
+      <span class="btn-google-icon">G</span>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-divider">
+      <span class="auth-divider-line"></span>
+      <span class="auth-divider-text">or continue with email</span>
+      <span class="auth-divider-line"></span>
+    </div>
+
+    <div class="auth-tabs">
+      <button
+        class="auth-tab"
+        type="button"
+        [class.active]="authMode === 'login'"
+        (click)="openAuth('login')"
+      >
+        Log in
+      </button>
+      <button
+        class="auth-tab"
+        type="button"
+        [class.active]="authMode === 'signup'"
+        (click)="openAuth('signup')"
+      >
+        Sign up
+      </button>
+    </div>
+
+    <form class="auth-form" (ngSubmit)="submitAuth()">
+      <ng-container [ngSwitch]="authMode">
+        <ng-container *ngSwitchCase="'login'">
+          <div class="field">
+            <label>Email</label>
+            <input
+              type="email"
+              name="loginEmail"
+              autocomplete="email"
+              placeholder="Email"
+              [(ngModel)]="loginEmail"
+            />
+          </div>
+
+          <div class="field">
+            <label>Password</label>
+            <input
+              type="password"
+              name="loginPassword"
+              autocomplete="current-password"
+              placeholder="Password"
+              [(ngModel)]="loginPassword"
+            />
+          </div>
+        </ng-container>
+
+        <ng-container *ngSwitchCase="'signup'">
+          <div class="field">
+            <label>Full name</label>
+            <input
+              type="text"
+              name="signupName"
+              autocomplete="name"
+              placeholder="Full name"
+              [(ngModel)]="signupName"
+            />
+          </div>
+
+          <div class="field">
+            <label>Email</label>
+            <input
+              type="email"
+              name="signupEmail"
+              autocomplete="email"
+              placeholder="Email"
+              [(ngModel)]="signupEmail"
+            />
+          </div>
+
+          <div class="field">
+            <label>Password</label>
+            <input
+              type="password"
+              name="signupPassword"
+              autocomplete="new-password"
+              placeholder="Password"
+              [(ngModel)]="signupPassword"
+            />
+          </div>
+        </ng-container>
+      </ng-container>
+
+      <button class="btn-primary" type="submit">
+        {{ authMode === 'login' ? 'Continue' : 'Create account' }}
+      </button>
+    </form>
+
+    <div *ngIf="authErrorMessage" class="auth-error">
+      {{ authErrorMessage }}
+    </div>
+  </section>
+</div>

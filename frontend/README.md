@@ -1,59 +1,150 @@
 # Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.5.
+## Install And Run
 
-## Development server
-
-To start a local development server, run:
+To install dependencies and start the frontend:
 
 ```bash
-ng serve
+cd frontend
+npm install
+npm start
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+Once the server is running, open your browser and navigate to `http://localhost:4200/`.
 
-## Code scaffolding
+## Additional Frontend Documentation
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+For the specific frontend authentication, backend communication, and route protection flow, go through these files:
 
-```bash
-ng generate component component-name
+- `frontend/FIREBASE_AUTH_AND_BACKEND_FLOW.md`
+- `frontend/ROUTE_PROTECTION_FLOW.md`
+
+## Frontend Folder Structure
+
+The main frontend code lives in `frontend/src/app`.
+
+Important folders and files:
+
+- `src/app/app.ts`
+  Root Angular app component
+- `src/app/app.routes.ts`
+  Main route configuration
+- `src/app/core/auth.facade.ts`
+  Shared Firebase authentication logic and backend auth sync
+- `src/app/core/auth.guards.ts`
+  Route guards for protected and public-only routes
+- `src/app/pages/auth-page/`
+  Public authentication page for email login, signup, and Google sign-in
+- `src/app/pages/dashboard-shell/`
+  Protected dashboard layout shell with navbar, user info, logout, and child route outlet
+- `src/app/pages/dashboard-home/`
+  Default page rendered inside the dashboard shell
+- `src/app/pages/calculator/`
+  Protected calculator feature page
+
+## Route Structure
+
+The frontend uses this route model:
+
+```text
+/auth
+  public authentication page
+
+/dashboard
+  protected layout shell
+  default child page: dashboard home
+
+/dashboard/calculator
+  protected calculator page inside dashboard shell
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Access Flow
 
-```bash
-ng generate --help
+Access is controlled by Angular route guards and Firebase Authentication.
+
+The behavior is:
+
+- unauthenticated users trying to access `/dashboard` or its child routes are redirected to `/auth`
+- authenticated users visiting `/auth` are redirected to `/dashboard`
+- authenticated users can move between protected dashboard pages without logging in again
+
+## Authentication Flow
+
+The frontend uses Firebase Auth for:
+
+- email login
+- email signup
+- Google login
+
+Once Firebase authenticates the user:
+
+1. the frontend receives the authenticated Firebase user
+2. the frontend gets a Firebase ID token
+3. the frontend sends a request to the backend auth sync endpoint
+
+Current sync contract:
+
+```text
+POST /api/auth/sync
+Authorization: Bearer <firebase_token>
+body: { uid: "<firebase_uid>" }
 ```
 
-## Building
+## Frontend To Backend Communication
 
-To build the project run:
+The frontend communicates with the backend in two main ways:
 
-```bash
-ng build
+### 1. Auth Sync
+
+Handled from:
+
+- `src/app/core/auth.facade.ts`
+
+Purpose:
+
+- sync authenticated Firebase identity with the backend
+- let backend use Firebase `uid` as the canonical user identifier
+
+### 2. Feature APIs
+
+Example:
+
+- `src/app/pages/calculator/calculator.ts`
+
+Current calculator API:
+
+```text
+POST /api/calculator/project
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+This is a normal feature request and is separate from Firebase authentication logic.
 
-## Running unit tests
+## Separation Of Responsibility
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+The frontend is structured so that authentication logic is separate from feature pages.
 
-```bash
-ng test
+That means:
+
+- `auth-page` handles sign-in and signup UI
+- `auth.facade` handles Firebase auth actions and backend sync
+- `auth.guards` protect routes
+- `dashboard-shell` provides the protected layout
+- feature pages like `calculator` do not manage authentication directly
+
+## Dashboard Shell vs Dashboard Home
+
+These two components have different responsibilities:
+
+- `dashboard-shell`
+  shared protected layout, navbar, profile display, logout, child route outlet
+- `dashboard-home`
+  the default content page shown at `/dashboard`
+
+Simple model:
+
+```text
+dashboard-shell = frame/layout
+dashboard-home = content inside that frame
 ```
 
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+This allows future protected pages like portfolio, profile, and history to reuse the same dashboard shell.

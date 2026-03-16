@@ -1,0 +1,44 @@
+<div class="dashboard-shell">
+  <header class="dashboard-header">
+    <div class="brand">
+      <div class="brand-mark">GS</div>
+      <div>
+        <div class="brand-title">GS Portfolio Lab</div>
+        <div class="brand-subtitle">Protected dashboard shell</div>
+      </div>
+    </div>
+
+    <nav class="dashboard-nav">
+      <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        Overview
+      </a>
+      <a routerLink="/dashboard/calculator" routerLinkActive="active">
+        Calculator
+      </a>
+    </nav>
+
+    <div class="user-area">
+      @if (authFacade.currentUser(); as user) {
+        @if (user.photoURL) {
+          <img
+            [src]="user.photoURL"
+            [alt]="user.displayName || user.email || 'Profile'"
+            class="user-avatar"
+            referrerpolicy="no-referrer"
+          />
+        } @else {
+          <span class="user-avatar user-avatar-initial">{{ authFacade.userInitial(user) }}</span>
+        }
+        <div class="user-copy">
+          <div class="user-name">{{ user.displayName || 'Authenticated user' }}</div>
+          <div class="user-email">{{ user.email }}</div>
+        </div>
+      }
+      <button class="logout-button" type="button" (click)="logout()">Log out</button>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

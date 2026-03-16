@@ -1,5 +1,6 @@
 package com.els.backend.controller;
 
+import com.els.backend.database.auth.AuthStore;
 import com.els.backend.service.FirebaseAuthResponse;
 import com.els.backend.service.FirebaseAuthService;
 import com.google.firebase.auth.FirebaseAuthException;
@@ -22,9 +23,11 @@ public class AuthSyncController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthSyncController.class);
     private final FirebaseAuthService firebaseAuthService;
+    private final AuthStore authStore;
 
-    public AuthSyncController(FirebaseAuthService firebaseAuthService) {
+    public AuthSyncController(FirebaseAuthService firebaseAuthService, AuthStore authStore) {
         this.firebaseAuthService = firebaseAuthService;
+        this.authStore = authStore;
     }
 
     @PostMapping("/sync")
@@ -43,6 +46,7 @@ public class AuthSyncController {
         try {
             FirebaseAuthService.VerifiedFirebaseUser verifiedUser = firebaseAuthService.verifyIdToken(idToken);
 
+            // Optional consistency check if caller also sends uid in the body.
             if (request != null && request.uid() != null && !request.uid().isBlank()
                     && !verifiedUser.uid().equals(request.uid().trim())) {
                 logger.warn("Auth sync rejected: request uid does not match verified uid");
@@ -58,8 +62,11 @@ public class AuthSyncController {
             response.setDisplayName(verifiedUser.displayName());
             response.setPhotoUrl(verifiedUser.photoUrl());
             response.setAuthProvider(verifiedUser.authProvider());
-            response.setSyncStatus("pending");
-            response.setMessage("Verified Firebase user accepted. PostgreSQL sync is not wired yet.");
+            boolean created = authStore.insertIfMissing(verifiedUser);
+            response.setSyncStatus(created ? "created" : "existing");
+            response.setMessage(created
+                    ? "Verified Firebase user created in PostgreSQL."
+                    : "Verified Firebase user already exists in PostgreSQL.");
 
             logger.info("Auth sync verified user uid={} provider={}", verifiedUser.uid(), verifiedUser.authProvider());
             return ResponseEntity.ok(response);

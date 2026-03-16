@@ -1,5 +1,6 @@
 package com.els.backend.controller;
 
+import com.els.backend.service.FirebaseAuthResponse;
 import com.els.backend.service.FirebaseAuthService;
 import com.google.firebase.auth.FirebaseAuthException;
 import org.springframework.http.HttpHeaders;
@@ -24,14 +25,14 @@ public class AuthSyncController {
     }
 
     @PostMapping("/sync")
-    public ResponseEntity<AuthSyncResponse> syncUser(
+    public ResponseEntity<FirebaseAuthResponse> syncUser(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @RequestBody(required = false) AuthSyncRequest request
     ) {
         String idToken = extractBearerToken(authorizationHeader);
         if (idToken == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                    AuthSyncResponse.error("Missing or invalid Authorization header.")
+                    FirebaseAuthResponse.error("Missing or invalid Authorization header.")
             );
         }
 
@@ -41,24 +42,24 @@ public class AuthSyncController {
             if (request != null && request.uid() != null && !request.uid().isBlank()
                     && !verifiedUser.uid().equals(request.uid().trim())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                        AuthSyncResponse.error("Request uid does not match verified Firebase uid.")
+                        FirebaseAuthResponse.error("Request uid does not match verified Firebase uid.")
                 );
             }
 
-            return ResponseEntity.ok(new AuthSyncResponse(
-                    true,
-                    verifiedUser.uid(),
-                    verifiedUser.email(),
-                    verifiedUser.displayName(),
-                    verifiedUser.photoUrl(),
-                    verifiedUser.authProvider(),
-                    "pending",
-                    "Verified Firebase user accepted. PostgreSQL sync is not wired yet.",
-                    null
-            ));
+            FirebaseAuthResponse response = new FirebaseAuthResponse();
+            response.setSuccess(true);
+            response.setUid(verifiedUser.uid());
+            response.setEmail(verifiedUser.email());
+            response.setDisplayName(verifiedUser.displayName());
+            response.setPhotoUrl(verifiedUser.photoUrl());
+            response.setAuthProvider(verifiedUser.authProvider());
+            response.setSyncStatus("pending");
+            response.setMessage("Verified Firebase user accepted. PostgreSQL sync is not wired yet.");
+
+            return ResponseEntity.ok(response);
         } catch (FirebaseAuthException exception) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                    AuthSyncResponse.error("Firebase token verification failed: " + exception.getMessage())
+                    FirebaseAuthResponse.error("Firebase token verification failed: " + exception.getMessage())
             );
         }
     }
@@ -77,31 +78,5 @@ public class AuthSyncController {
     }
 
     public record AuthSyncRequest(String uid) {
-    }
-
-    public record AuthSyncResponse(
-            boolean success,
-            String uid,
-            String email,
-            String displayName,
-            String photoUrl,
-            String authProvider,
-            String syncStatus,
-            String message,
-            String error
-    ) {
-        public static AuthSyncResponse error(String errorMessage) {
-            return new AuthSyncResponse(
-                    false,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    errorMessage
-            );
-        }
     }
 }

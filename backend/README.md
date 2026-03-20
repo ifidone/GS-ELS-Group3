@@ -8,6 +8,7 @@ Key files:
 - `backend/backend/pom.xml` includes `spring-boot-starter-jdbc`, `flyway-core`, `flyway-database-postgresql`, and `postgresql`.
 - `backend/backend/src/main/resources/application.properties` contains the datasource and Flyway configuration.
 - `backend/backend/src/main/resources/db/migration/V1__create_users_table.sql` creates the `users` table.
+- `backend/backend/src/main/resources/db/migration/V2__create_saved_calculations_table.sql` creates the `saved_calculations` table.
 
 Run the backend:
 
@@ -25,6 +26,56 @@ SERVER_PORT=8081 ./mvnw spring-boot:run
 Notes:
 - If your database credentials change, update them in `backend/backend/src/main/resources/application.properties`.
 - Flyway creates `flyway_schema_history` and applies migrations on startup.
+
+## Saved Calculations API
+
+Authenticated endpoints for storing user calculation history:
+
+```
+GET    /api/calculations
+POST   /api/calculations
+PUT    /api/calculations/{id}
+DELETE /api/calculations/{id}
+```
+
+All saved-calculation requests require:
+
+```
+Authorization: Bearer <firebase_id_token>
+```
+
+Request body for `POST` and `PUT`:
+
+```json
+{
+  "ticker": "VFIAX",
+  "initialInvestment": 10000,
+  "years": 10,
+  "beta": 1.2,
+  "expectedReturn": 0.08,
+  "futureValue": 21500
+}
+```
+
+Notes:
+- Ownership is enforced via verified Firebase `uid`.
+- `users` is insert-if-missing on save to keep referential integrity intact.
+
+## Calculator Projection API
+
+```
+POST /api/calculator/project
+```
+
+Request:
+
+```json
+{
+  "ticker": "VFIAX",
+  "initialInvestment": 10000,
+  "years": 10
+}
+```
 
 ## Backend Auth Sync Flow
 
@@ -123,3 +174,21 @@ users (
   updated_at timestamp
 )
 ```
+
+## Tests
+
+Unit tests (default):
+
+```bash
+cd backend/backend
+./mvnw test
+```
+
+Integration tests (explicit gate, real DB):
+
+```bash
+RUN_INTEGRATION=true DB_URL=... DB_USERNAME=... DB_PASSWORD=... \
+./mvnw -Dspring.profiles.active=integration test
+```
+
+Integration profile config: `backend/backend/src/test/resources/application-integration.properties`

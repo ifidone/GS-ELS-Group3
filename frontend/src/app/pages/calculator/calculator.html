@@ -76,6 +76,37 @@
           <div class="results-value">${{ result.futureValue }}</div>
         </div>
       </div>
+
+      <div class="history-results" *ngIf="history.length || historyError">
+        <h2>Saved calculations</h2>
+
+        <div *ngIf="historyError" class="history-status history-error">{{ historyError }}</div>
+
+        <div class="history-list" *ngIf="history.length">
+          <article class="history-card" *ngFor="let item of history">
+            <div class="history-title">
+              {{ item.ticker }}
+              <span>${{ item.initialInvestment | number: '1.0-0' }}</span>
+            </div>
+            <div class="history-meta">
+              {{ item.years }} years · Beta {{ item.beta | number: '1.2-2' }} · Expected return
+              {{ item.expectedReturn * 100 | number: '1.2-2' }}%
+            </div>
+            <div class="history-value-row">
+              <div class="history-value">
+                Projected: ${{ item.futureValue | number: '1.2-2' }}
+              </div>
+              <button
+                type="button"
+                class="history-delete"
+                (click)="deleteCalculation(item.id)"
+              >
+                🗑
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
     </div>
   </section>
 </section>

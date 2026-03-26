@@ -1,5 +1,11 @@
 # GS-ELS-Group3
 
+## Backend Features
+
+- Spring Boot REST APIs for auth sync, calculator projection, and saved calculations.
+- New `/api/chat` endpoint that uses Gemini 2.5 Flash with MCP tool calling.
+- MCP client connects to the FastMCP server for tool execution.
+
 ## Backend Database Setup
 
 The backend now uses PostgreSQL with Flyway migrations.
@@ -26,6 +32,33 @@ SERVER_PORT=8081 ./mvnw spring-boot:run
 Notes:
 - If your database credentials change, update them in `backend/backend/src/main/resources/application.properties`.
 - Flyway creates `flyway_schema_history` and applies migrations on startup.
+
+## Chat API (Gemini + MCP)
+
+```
+POST /api/chat
+```
+
+Request:
+```json
+{
+  "message": "Show my saved calculations",
+  "uid": "firebase_uid"
+}
+```
+
+Response:
+```json
+{
+  "reply": "..."
+}
+```
+
+Configuration (in `backend/backend/src/main/resources/application.properties`):
+- `spring.ai.google.genai.api-key` for Gemini API key (fallback env `ApiKey`).
+- `spring.ai.google.genai.chat.options.model` for the model name.
+- `spring.ai.mcp.client.streamable-http.connections.mcp.url` for MCP server base URL (fallback env `MCP_SERVER_ORIGIN`).
+- `spring.ai.mcp.client.streamable-http.connections.mcp.endpoint` for MCP endpoint path (fallback env `MCP_SERVER_ENDPOINT`).
 
 ## Saved Calculations API
 

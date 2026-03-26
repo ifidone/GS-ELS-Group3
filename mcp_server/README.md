@@ -4,7 +4,8 @@
 - HTTP/SSE MCP server using FastMCP.
 - Plain HTTP health check at `/health`.
 - Read-only access to saved calculations in PostgreSQL.
-- `chat` tool that echoes input for integration testing.
+- `chat_echo` tool that echoes input for integration testing.
+- `saved_calculations_list` tool that checks the `users` table before returning data.
 
 ## Requirements
 - Python 3.11+
@@ -12,6 +13,7 @@
 
 ## Environment
 Ensure `.env` includes database settings plus `MCP_HOST`, `MCP_PORT`, and optional `MCP_PATH`.
+Local dev uses `MCP_PORT=8000` in `.env`.
 
 ## Run Locally
 ```bash
@@ -24,7 +26,7 @@ python3 server.py
 
 ## Health Check
 ```bash
-curl -s http://localhost:8080/health
+curl -s http://localhost:8000/health
 ```
 
 ## MCP Tools

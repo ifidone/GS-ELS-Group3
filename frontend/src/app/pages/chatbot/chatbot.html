@@ -12,7 +12,7 @@
 
   <div class="chat-input">
     <input [(ngModel)]="userInput" placeholder="Ask about mutual funds..." />
-    <button (click)="sendMessage()">Send</button>
+    <button (click)="sendMessage()" [disabled]="isLoading || !userInput.trim()">Send</button>
   </div>
 
 </div>

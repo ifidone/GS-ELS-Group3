@@ -110,6 +110,15 @@ Request:
 }
 ```
 
+## Mutual Funds API
+
+```
+GET /api/funds
+GET /api/funds/{ticker}
+```
+
+Seed data is loaded via Flyway migration `V4__create_mutual_funds_table.sql`.
+
 ## Backend Auth Sync Flow
 
 ### Purpose

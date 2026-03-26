@@ -26,3 +26,9 @@ frontend/.angular/
 # ========================
 .DS_Store
 Thumbs.db
+
+# ========================
+# Environment
+# ========================
+.env
+mcp_server/.env

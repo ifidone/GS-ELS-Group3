@@ -62,25 +62,38 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 
 ## Saved Calculations API
 
-Authenticated endpoints for storing user calculation history:
+Endpoints for storing user calculation history:
 
 ```
 GET    /api/calculations
 POST   /api/calculations
 PUT    /api/calculations/{id}
 DELETE /api/calculations/{id}
+PATCH  /api/saved-calculations/{id}
+DELETE /api/saved-calculations/{id}
+GET    /api/saved-calculations
 ```
 
-All saved-calculation requests require:
+Auth (optional for list and create):
 
 ```
 Authorization: Bearer <firebase_id_token>
+```
+
+`GET /api/calculations` and `POST /api/calculations` can accept a body with `uid` when no auth header is provided:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
 ```
 
 Request body for `POST` and `PUT`:
 
 ```json
 {
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Custom label",
   "ticker": "VFIAX",
   "initialInvestment": 10000,
   "years": 10,
@@ -93,6 +106,101 @@ Request body for `POST` and `PUT`:
 Notes:
 - Ownership is enforced via verified Firebase `uid`.
 - `users` is insert-if-missing on save to keep referential integrity intact.
+- `name` is stored with each saved calculation. If omitted on create/update, the ticker is used.
+
+`PATCH /api/saved-calculations/{id}` (uid in body):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Retirement S&P 500",
+  "ticker": "VFIAX",
+  "initialInvestment": 12000,
+  "years": 12
+}
+```
+
+If ticker/initialInvestment/years change, the backend recomputes beta/expectedReturn/futureValue.
+
+`GET /api/saved-calculations` (uid in body, optional `name` query for search):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Example search:
+
+```
+GET /api/saved-calculations?name=Retirement
+```
+
+`DELETE /api/saved-calculations/{id}` (uid in body):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+## Portfolios API
+
+These endpoints use `uid` from the JSON request body (no Firebase verification).
+
+```
+GET    /api/portfolios?page=0&size=20&sort=createdAt,desc
+POST   /api/portfolios
+GET    /api/portfolios/{name}
+PATCH  /api/portfolios/{name}
+DELETE /api/portfolios/{name}
+GET    /api/portfolios/{name}/items
+PUT    /api/portfolios/{name}/items/{calculationId}
+DELETE /api/portfolios/{name}/items/{calculationId}
+GET    /api/portfolios/{name}/available-calculations
+```
+
+Base URL: `http://localhost:8080`
+
+UID body (send with all portfolio endpoints):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Create portfolio body:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Aggressive Growth",
+  "description": "High-risk growth bucket"
+}
+```
+
+Update portfolio body:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Retirement 2045 (updated)",
+  "description": "Updated description"
+}
+```
+
+Delete portfolio response:
+- `200 OK` if deleted
+- `404` if not found
+
+Add calculation to portfolio response:
+- `200 OK` if linked (or already linked)
+
+Remove calculation from portfolio response:
+- `200 OK` if removed
+- `404` with message `Calculation does not exist for this user.` when the calculation is not owned by the uid
+- `404` with message `Calculation is not linked to this portfolio.` when the link does not exist
 
 ## Calculator Projection API
 
@@ -109,6 +217,15 @@ Request:
   "years": 10
 }
 ```
+
+## Mutual Funds API
+
+```
+GET /api/funds
+GET /api/funds/{ticker}
+```
+
+Seed data is loaded via Flyway migration `V4__create_mutual_funds_table.sql`.
 
 ## Backend Auth Sync Flow
 

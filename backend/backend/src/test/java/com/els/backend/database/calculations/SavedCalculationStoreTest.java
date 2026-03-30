@@ -26,6 +26,7 @@ class SavedCalculationStoreTest {
                         1L,
                         "uid-1",
                         "VFIAX",
+                        "VFIAX",
                         10000,
                         10,
                         1.2,
@@ -50,6 +51,7 @@ class SavedCalculationStoreTest {
                         1L,
                         "uid-1",
                         "VFIAX",
+                        "VFIAX",
                         10000,
                         10,
                         1.2,
@@ -63,7 +65,7 @@ class SavedCalculationStoreTest {
 
         SavedCalculationStore.SavedCalculation inserted = store.insert(
                 "uid-1",
-                new SavedCalculationStore.SavedCalculationPayload("VFIAX", 10000, 10, 1.2, 0.08, 21500)
+                new SavedCalculationStore.SavedCalculationPayload("VFIAX", "VFIAX", 10000, 10, 1.2, 0.08, 21500)
         );
         assertNotNull(inserted);
     }
@@ -77,7 +79,7 @@ class SavedCalculationStoreTest {
 
         Optional<SavedCalculationStore.SavedCalculation> updated =
                 store.update("uid-1", 999999L,
-                        new SavedCalculationStore.SavedCalculationPayload("SWPPX", 5000, 5, 1.0, 0.05, 6400));
+                        new SavedCalculationStore.SavedCalculationPayload("SWPPX", "SWPPX", 5000, 5, 1.0, 0.05, 6400));
         assertTrue(updated.isEmpty());
     }
 

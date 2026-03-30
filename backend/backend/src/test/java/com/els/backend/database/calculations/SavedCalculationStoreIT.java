@@ -50,6 +50,7 @@ class SavedCalculationStoreIT {
         SavedCalculationStore.SavedCalculationPayload payload =
                 new SavedCalculationStore.SavedCalculationPayload(
                         "VFIAX",
+                        "VFIAX",
                         10000,
                         10,
                         1.2,
@@ -68,6 +69,7 @@ class SavedCalculationStoreIT {
 
         SavedCalculationStore.SavedCalculationPayload updatePayload =
                 new SavedCalculationStore.SavedCalculationPayload(
+                        "FDGRX",
                         "FDGRX",
                         12000,
                         12,
@@ -95,6 +97,7 @@ class SavedCalculationStoreIT {
 
         SavedCalculationStore.SavedCalculationPayload payload =
                 new SavedCalculationStore.SavedCalculationPayload(
+                        "SWPPX",
                         "SWPPX",
                         5000,
                         5,

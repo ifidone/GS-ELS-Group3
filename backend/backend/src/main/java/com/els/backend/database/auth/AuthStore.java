@@ -38,4 +38,21 @@ public class AuthStore {
         );
         return updated > 0;
     }
+
+    // Inserts a minimal user row when only a uid is available (no Firebase verification).
+    public boolean insertIfMissingUid(String uid) {
+        if (uid == null || uid.isBlank()) {
+            return false;
+        }
+        String sql = """
+                insert into users (
+                    uid,
+                    created_at,
+                    updated_at
+                )
+                values (?, now(), now())
+                on conflict (uid) do nothing
+                """;
+        return jdbcTemplate.update(sql, uid) > 0;
+    }
 }

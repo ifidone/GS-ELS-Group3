@@ -69,15 +69,18 @@ GET    /api/calculations
 POST   /api/calculations
 PUT    /api/calculations/{id}
 DELETE /api/calculations/{id}
+PATCH  /api/saved-calculations/{id}
+DELETE /api/saved-calculations/{id}
+GET    /api/saved-calculations
 ```
 
-Auth (optional for list):
+Auth (optional for list and create):
 
 ```
 Authorization: Bearer <firebase_id_token>
 ```
 
-`GET /api/calculations` can also accept a body with `uid` when no auth header is provided:
+`GET /api/calculations` and `POST /api/calculations` can accept a body with `uid` when no auth header is provided:
 
 ```json
 {
@@ -85,10 +88,12 @@ Authorization: Bearer <firebase_id_token>
 }
 ```
 
-Request body for `POST` and `PUT` (auth required):
+Request body for `POST` and `PUT`:
 
 ```json
 {
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Custom label",
   "ticker": "VFIAX",
   "initialInvestment": 10000,
   "years": 10,
@@ -101,6 +106,43 @@ Request body for `POST` and `PUT` (auth required):
 Notes:
 - Ownership is enforced via verified Firebase `uid`.
 - `users` is insert-if-missing on save to keep referential integrity intact.
+- `name` is stored with each saved calculation. If omitted on create/update, the ticker is used.
+
+`PATCH /api/saved-calculations/{id}` (uid in body):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Retirement S&P 500",
+  "ticker": "VFIAX",
+  "initialInvestment": 12000,
+  "years": 12
+}
+```
+
+If ticker/initialInvestment/years change, the backend recomputes beta/expectedReturn/futureValue.
+
+`GET /api/saved-calculations` (uid in body, optional `name` query for search):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Example search:
+
+```
+GET /api/saved-calculations?name=Retirement
+```
+
+`DELETE /api/saved-calculations/{id}` (uid in body):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
 
 ## Portfolios API
 

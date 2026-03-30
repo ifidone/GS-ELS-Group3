@@ -62,7 +62,7 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 
 ## Saved Calculations API
 
-Authenticated endpoints for storing user calculation history:
+Endpoints for storing user calculation history:
 
 ```
 GET    /api/calculations
@@ -71,13 +71,21 @@ PUT    /api/calculations/{id}
 DELETE /api/calculations/{id}
 ```
 
-All saved-calculation requests require:
+Auth (optional for list):
 
 ```
 Authorization: Bearer <firebase_id_token>
 ```
 
-Request body for `POST` and `PUT`:
+`GET /api/calculations` can also accept a body with `uid` when no auth header is provided:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Request body for `POST` and `PUT` (auth required):
 
 ```json
 {
@@ -93,6 +101,64 @@ Request body for `POST` and `PUT`:
 Notes:
 - Ownership is enforced via verified Firebase `uid`.
 - `users` is insert-if-missing on save to keep referential integrity intact.
+
+## Portfolios API
+
+These endpoints use `uid` from the JSON request body (no Firebase verification).
+
+```
+GET    /api/portfolios?page=0&size=20&sort=createdAt,desc
+POST   /api/portfolios
+GET    /api/portfolios/{name}
+PATCH  /api/portfolios/{name}
+DELETE /api/portfolios/{name}
+GET    /api/portfolios/{name}/items
+PUT    /api/portfolios/{name}/items/{calculationId}
+DELETE /api/portfolios/{name}/items/{calculationId}
+GET    /api/portfolios/{name}/available-calculations
+```
+
+Base URL: `http://localhost:8080`
+
+UID body (send with all portfolio endpoints):
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Create portfolio body:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Aggressive Growth",
+  "description": "High-risk growth bucket"
+}
+```
+
+Update portfolio body:
+
+```json
+{
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "name": "Retirement 2045 (updated)",
+  "description": "Updated description"
+}
+```
+
+Delete portfolio response:
+- `200 OK` if deleted
+- `404` if not found
+
+Add calculation to portfolio response:
+- `200 OK` if linked (or already linked)
+
+Remove calculation from portfolio response:
+- `200 OK` if removed
+- `404` with message `Calculation does not exist for this user.` when the calculation is not owned by the uid
+- `404` with message `Calculation is not linked to this portfolio.` when the link does not exist
 
 ## Calculator Projection API
 

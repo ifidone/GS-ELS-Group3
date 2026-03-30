@@ -46,6 +46,7 @@ class SavedCalculationsControllerTest {
                         42L,
                         testUid,
                         "VFIAX",
+                        "VFIAX",
                         10000,
                         10,
                         1.2,
@@ -84,6 +85,7 @@ class SavedCalculationsControllerTest {
                         42L,
                         testUid,
                         "VFIAX",
+                        "VFIAX",
                         10000,
                         10,
                         1.2,
@@ -99,6 +101,7 @@ class SavedCalculationsControllerTest {
                         42L,
                         testUid,
                         "FDGRX",
+                        "FDGRX",
                         12000,
                         12,
                         1.1,
@@ -112,6 +115,8 @@ class SavedCalculationsControllerTest {
 
         SavedCalculationsController.SavedCalculationRequest createRequest =
                 new SavedCalculationsController.SavedCalculationRequest(
+                        testUid,
+                        null,
                         "VFIAX",
                         10000,
                         10,
@@ -127,6 +132,8 @@ class SavedCalculationsControllerTest {
 
         SavedCalculationsController.SavedCalculationRequest updateRequest =
                 new SavedCalculationsController.SavedCalculationRequest(
+                        testUid,
+                        null,
                         "FDGRX",
                         12000,
                         12,
@@ -167,6 +174,8 @@ class SavedCalculationsControllerTest {
 
         SavedCalculationsController.SavedCalculationRequest request =
                 new SavedCalculationsController.SavedCalculationRequest(
+                        testUid,
+                        null,
                         "SWPPX",
                         5000,
                         5,
@@ -194,6 +203,8 @@ class SavedCalculationsControllerTest {
 
         SavedCalculationsController.SavedCalculationRequest request =
                 new SavedCalculationsController.SavedCalculationRequest(
+                        testUid,
+                        null,
                         "",
                         -100,
                         0,
@@ -204,5 +215,65 @@ class SavedCalculationsControllerTest {
         ResponseEntity<SavedCalculationsController.SavedCalculationResponse> response =
                 controller.create("Bearer test-token", request);
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    void listSavedCalculations_withNameQuery_filters() {
+        String testUid = "test-saved-calculation-" + UUID.randomUUID();
+        SavedCalculationStore.SavedCalculation saved =
+                new SavedCalculationStore.SavedCalculation(
+                        55L,
+                        testUid,
+                        "Retirement S&P 500",
+                        "VFIAX",
+                        10000,
+                        10,
+                        1.2,
+                        0.08,
+                        21500,
+                        java.time.Instant.now(),
+                        java.time.Instant.now()
+                );
+        when(savedCalculationStore.listByUidAndNameLike(testUid, "Retirement"))
+                .thenReturn(List.of(saved));
+
+        SavedCalculationsController.UidRequest request =
+                new SavedCalculationsController.UidRequest(testUid);
+        ResponseEntity<List<SavedCalculationsController.SavedCalculationResponse>> response =
+                controller.listSavedCalculations(request, "Retirement");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
+    }
+
+    @Test
+    void patchSavedCalculation_missingRow_returnsNotFound() {
+        String testUid = "test-saved-calculation-" + UUID.randomUUID();
+        when(savedCalculationStore.getById(testUid, 101L)).thenReturn(java.util.Optional.empty());
+
+        SavedCalculationsController.SavedCalculationPatchRequest request =
+                new SavedCalculationsController.SavedCalculationPatchRequest(
+                        testUid,
+                        "Name",
+                        null,
+                        null,
+                        null
+                );
+        ResponseEntity<Object> response = controller.patchSavedCalculation(101L, request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    void deleteSavedCalculation_missingRow_returnsNotFound() {
+        String testUid = "test-saved-calculation-" + UUID.randomUUID();
+        when(savedCalculationStore.delete(testUid, 202L)).thenReturn(false);
+
+        SavedCalculationsController.UidRequest request =
+                new SavedCalculationsController.UidRequest(testUid);
+        ResponseEntity<Object> response = controller.deleteSavedCalculation(202L, request);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 }

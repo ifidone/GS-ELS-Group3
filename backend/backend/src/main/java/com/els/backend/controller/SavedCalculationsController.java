@@ -12,18 +12,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/calculations")
+@RequestMapping("/api")
 @CrossOrigin(origins = "${app.frontend-origin}")
 public class SavedCalculationsController {
 
@@ -43,7 +46,7 @@ public class SavedCalculationsController {
         this.savedCalculationStore = savedCalculationStore;
     }
 
-    @GetMapping
+    @GetMapping("/calculations")
     public ResponseEntity<List<SavedCalculationResponse>> list(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @RequestBody(required = false) UidRequest request
@@ -60,14 +63,14 @@ public class SavedCalculationsController {
         return ResponseEntity.ok(responses);
     }
 
-    @PostMapping
+    @PostMapping("/calculations")
     public ResponseEntity<SavedCalculationResponse> create(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @RequestBody(required = false) SavedCalculationRequest request
     ) {
         // Validate input and persist a new saved calculation for the caller.
-        FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
-        if (user == null) {
+        String uid = resolveUid(authorizationHeader, request);
+        if (uid == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
@@ -75,15 +78,21 @@ public class SavedCalculationsController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
-        authStore.insertIfMissing(user);
+        SavedCalculationStore.SavedCalculationPayload payload = request.toPayload();
+        FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
+        if (user != null) {
+            authStore.insertIfMissing(user);
+        } else {
+            authStore.insertIfMissingUid(uid);
+        }
         SavedCalculationStore.SavedCalculation saved = savedCalculationStore.insert(
-                user.uid(),
-                request.toPayload()
+                uid,
+                payload
         );
         return ResponseEntity.ok(SavedCalculationResponse.from(saved));
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/calculations/{id}")
     public ResponseEntity<SavedCalculationResponse> update(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("id") long id,
@@ -104,7 +113,7 @@ public class SavedCalculationsController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/calculations/{id}")
     public ResponseEntity<Void> delete(
             @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("id") long id
@@ -150,11 +159,13 @@ public class SavedCalculationsController {
         return authorizationHeader.substring(prefix.length()).trim();
     }
 
-    private String resolveUid(String authorizationHeader, UidRequest request) {
+    private String resolveUid(String authorizationHeader, UidCarrier request) {
         // Prefer verified Firebase uid when available, fall back to body uid for internal tools/tests.
-        FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
-        if (user != null) {
-            return user.uid();
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
+            if (user != null) {
+                return user.uid();
+            }
         }
         if (request == null || request.uid() == null || request.uid().isBlank()) {
             return null;
@@ -177,16 +188,21 @@ public class SavedCalculationsController {
     }
 
     public record SavedCalculationRequest(
+            String uid,
+            String name,
             String ticker,
             double initialInvestment,
             double years,
             double beta,
             double expectedReturn,
             double futureValue
-    ) {
+    ) implements UidCarrier {
         public SavedCalculationStore.SavedCalculationPayload toPayload() {
+            String normalizedTicker = ticker.trim().toUpperCase();
+            String resolvedName = (name == null || name.isBlank()) ? normalizedTicker : name.trim();
             return new SavedCalculationStore.SavedCalculationPayload(
-                    ticker.trim().toUpperCase(),
+                    resolvedName,
+                    normalizedTicker,
                     initialInvestment,
                     years,
                     beta,
@@ -198,6 +214,7 @@ public class SavedCalculationsController {
 
     public record SavedCalculationResponse(
             long id,
+            String name,
             String ticker,
             double initialInvestment,
             double years,
@@ -210,6 +227,7 @@ public class SavedCalculationsController {
         public static SavedCalculationResponse from(SavedCalculationStore.SavedCalculation saved) {
             return new SavedCalculationResponse(
                     saved.id(),
+                    saved.name(),
                     saved.ticker(),
                     saved.initialInvestment(),
                     saved.years(),
@@ -222,6 +240,158 @@ public class SavedCalculationsController {
         }
     }
 
-    public record UidRequest(String uid) {
+    public record UidRequest(String uid) implements UidCarrier {
+    }
+
+    private sealed interface UidCarrier permits SavedCalculationRequest, UidRequest, SavedCalculationPatchRequest {
+        String uid();
+    }
+
+    @GetMapping("/saved-calculations")
+    public ResponseEntity<List<SavedCalculationResponse>> listSavedCalculations(
+            @RequestBody(required = false) UidRequest request,
+            @RequestParam(value = "name", required = false) String nameQuery
+    ) {
+        String uid = extractUid(request);
+        if (uid == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        List<SavedCalculationResponse> responses = (
+                nameQuery == null || nameQuery.isBlank()
+                        ? savedCalculationStore.listByUid(uid)
+                        : savedCalculationStore.listByUidAndNameLike(uid, nameQuery.trim())
+        )
+                .stream()
+                .map(SavedCalculationResponse::from)
+                .toList();
+        return ResponseEntity.ok(responses);
+    }
+
+    @PatchMapping("/saved-calculations/{calculationId}")
+    public ResponseEntity<Object> patchSavedCalculation(
+            @PathVariable("calculationId") long calculationId,
+            @RequestBody(required = false) SavedCalculationPatchRequest request
+    ) {
+        String uid = extractUid(request);
+        if (uid == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        Optional<SavedCalculationStore.SavedCalculation> existing =
+                savedCalculationStore.getById(uid, calculationId);
+        if (existing.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        SavedCalculationStore.SavedCalculation current = existing.get();
+        String updatedTicker = resolveTicker(request.ticker(), current.ticker());
+        Double updatedInitialInvestment = resolveDouble(request.initialInvestment(), current.initialInvestment());
+        Double updatedYears = resolveDouble(request.years(), current.years());
+        String updatedName = resolveName(request.name(), current.name(), updatedTicker);
+
+        if (updatedTicker == null || updatedTicker.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        if (updatedInitialInvestment == null || updatedInitialInvestment <= 0
+                || updatedYears == null || updatedYears <= 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        boolean recompute = hasInputChange(current, updatedTicker, updatedInitialInvestment, updatedYears);
+        double beta = current.beta();
+        double expectedReturn = current.expectedReturn();
+        double futureValue = current.futureValue();
+
+        if (recompute) {
+            com.els.backend.service.FutureValueService.FutureValueComputation computation =
+                    com.els.backend.service.FutureValueService.computeFutureValue(
+                            updatedTicker, updatedInitialInvestment, updatedYears);
+            beta = computation.beta();
+            expectedReturn = computation.expectedReturn();
+            futureValue = computation.futureValue();
+        }
+
+        SavedCalculationStore.SavedCalculationPayload payload =
+                new SavedCalculationStore.SavedCalculationPayload(
+                        updatedName,
+                        updatedTicker,
+                        updatedInitialInvestment,
+                        updatedYears,
+                        beta,
+                        expectedReturn,
+                        futureValue
+                );
+
+        return savedCalculationStore.update(uid, calculationId, payload)
+                .<ResponseEntity<Object>>map(saved -> ResponseEntity.ok((Object) SavedCalculationResponse.from(saved)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    }
+
+    @DeleteMapping("/saved-calculations/{calculationId}")
+    public ResponseEntity<Object> deleteSavedCalculation(
+            @PathVariable("calculationId") long calculationId,
+            @RequestBody(required = false) UidRequest request
+    ) {
+        String uid = extractUid(request);
+        if (uid == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+
+        boolean deleted = savedCalculationStore.delete(uid, calculationId);
+        if (!deleted) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse("Calculation does not exist for this user."));
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    private String extractUid(UidCarrier request) {
+        if (request == null || request.uid() == null || request.uid().isBlank()) {
+            return null;
+        }
+        return request.uid().trim();
+    }
+
+    private String resolveTicker(String requestTicker, String currentTicker) {
+        if (requestTicker == null || requestTicker.isBlank()) {
+            return currentTicker;
+        }
+        return requestTicker.trim().toUpperCase();
+    }
+
+    private Double resolveDouble(Double requested, double current) {
+        return requested == null ? current : requested;
+    }
+
+    private String resolveName(String requestedName, String currentName, String updatedTicker) {
+        if (requestedName == null) {
+            return currentName;
+        }
+        if (requestedName.isBlank()) {
+            return updatedTicker;
+        }
+        return requestedName.trim();
+    }
+
+    private boolean hasInputChange(SavedCalculationStore.SavedCalculation current,
+                                   String ticker,
+                                   double initialInvestment,
+                                   double years) {
+        return !current.ticker().equalsIgnoreCase(ticker)
+                || Double.compare(current.initialInvestment(), initialInvestment) != 0
+                || Double.compare(current.years(), years) != 0;
+    }
+
+    public record SavedCalculationPatchRequest(
+            String uid,
+            String name,
+            String ticker,
+            Double initialInvestment,
+            Double years
+    ) implements UidCarrier {
+    }
+
+    public record ErrorResponse(String message) {
     }
 }

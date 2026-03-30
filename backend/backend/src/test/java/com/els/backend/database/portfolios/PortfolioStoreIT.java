@@ -117,6 +117,7 @@ class PortfolioStoreIT {
         return jdbcTemplate.queryForObject("""
                 insert into saved_calculations (
                     uid,
+                    name,
                     ticker,
                     initial_investment,
                     years,
@@ -126,8 +127,8 @@ class PortfolioStoreIT {
                     created_at,
                     updated_at
                 )
-                values (?, ?, ?, ?, ?, ?, ?, now(), now())
+                values (?, ?, ?, ?, ?, ?, ?, ?, now(), now())
                 returning id
-                """, Long.class, uid, "VFIAX", 10000, 10, 1.2, 0.08, 21500);
+                """, Long.class, uid, "VFIAX", "VFIAX", 10000, 10, 1.2, 0.08, 21500);
     }
 }

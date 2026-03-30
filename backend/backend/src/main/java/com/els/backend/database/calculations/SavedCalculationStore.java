@@ -20,6 +20,7 @@ public class SavedCalculationStore {
             return new SavedCalculation(
                     rs.getLong("id"),
                     rs.getString("uid"),
+                    rs.getString("name"),
                     rs.getString("ticker"),
                     rs.getDouble("initial_investment"),
                     rs.getDouble("years"),
@@ -41,7 +42,7 @@ public class SavedCalculationStore {
     // Fetch saved calculations for a user, newest first.
     public List<SavedCalculation> listByUid(String uid) {
         String sql = """
-                select id, uid, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
                 from saved_calculations
                 where uid = ?
                 order by created_at desc
@@ -49,11 +50,24 @@ public class SavedCalculationStore {
         return jdbcTemplate.query(sql, ROW_MAPPER, uid);
     }
 
+    public List<SavedCalculation> listByUidAndNameLike(String uid, String nameQuery) {
+        String sql = """
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                from saved_calculations
+                where uid = ?
+                  and lower(name) like lower(?)
+                order by created_at desc
+                """;
+        String pattern = "%" + nameQuery + "%";
+        return jdbcTemplate.query(sql, ROW_MAPPER, uid, pattern);
+    }
+
     // Insert a new saved calculation and return the created row.
     public SavedCalculation insert(String uid, SavedCalculationPayload payload) {
         String sql = """
                 insert into saved_calculations (
                     uid,
+                    name,
                     ticker,
                     initial_investment,
                     years,
@@ -63,13 +77,14 @@ public class SavedCalculationStore {
                     created_at,
                     updated_at
                 )
-                values (?, ?, ?, ?, ?, ?, ?, now(), now())
-                returning id, uid, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                values (?, ?, ?, ?, ?, ?, ?, ?, now(), now())
+                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
                 """;
         return jdbcTemplate.queryForObject(
                 sql,
                 ROW_MAPPER,
                 uid,
+                payload.name(),
                 payload.ticker(),
                 payload.initialInvestment(),
                 payload.years(),
@@ -84,6 +99,7 @@ public class SavedCalculationStore {
         String sql = """
                 update saved_calculations
                 set
+                    name = ?,
                     ticker = ?,
                     initial_investment = ?,
                     years = ?,
@@ -92,11 +108,12 @@ public class SavedCalculationStore {
                     future_value = ?,
                     updated_at = now()
                 where uid = ? and id = ?
-                returning id, uid, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
                 """;
         List<SavedCalculation> results = jdbcTemplate.query(
                 sql,
                 ROW_MAPPER,
+                payload.name(),
                 payload.ticker(),
                 payload.initialInvestment(),
                 payload.years(),
@@ -109,6 +126,16 @@ public class SavedCalculationStore {
         return results.stream().findFirst();
     }
 
+    public Optional<SavedCalculation> getById(String uid, long id) {
+        String sql = """
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                from saved_calculations
+                where uid = ? and id = ?
+                """;
+        List<SavedCalculation> results = jdbcTemplate.query(sql, ROW_MAPPER, uid, id);
+        return results.stream().findFirst();
+    }
+
     // Delete a saved calculation if it belongs to the user.
     public boolean delete(String uid, long id) {
         String sql = "delete from saved_calculations where uid = ? and id = ?";
@@ -118,6 +145,7 @@ public class SavedCalculationStore {
     public record SavedCalculation(
             long id,
             String uid,
+            String name,
             String ticker,
             double initialInvestment,
             double years,
@@ -130,6 +158,7 @@ public class SavedCalculationStore {
     }
 
     public record SavedCalculationPayload(
+            String name,
             String ticker,
             double initialInvestment,
             double years,

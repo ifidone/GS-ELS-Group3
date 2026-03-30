@@ -45,15 +45,15 @@ public class SavedCalculationsController {
 
     @GetMapping
     public ResponseEntity<List<SavedCalculationResponse>> list(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @RequestBody(required = false) UidRequest request
     ) {
-        // Require a valid Firebase token before returning any user data.
-        FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
-        if (user == null) {
+        String uid = resolveUid(authorizationHeader, request);
+        if (uid == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        List<SavedCalculationResponse> responses = savedCalculationStore.listByUid(user.uid())
+        List<SavedCalculationResponse> responses = savedCalculationStore.listByUid(uid)
                 .stream()
                 .map(SavedCalculationResponse::from)
                 .toList();
@@ -150,6 +150,18 @@ public class SavedCalculationsController {
         return authorizationHeader.substring(prefix.length()).trim();
     }
 
+    private String resolveUid(String authorizationHeader, UidRequest request) {
+        // Prefer verified Firebase uid when available, fall back to body uid for internal tools/tests.
+        FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
+        if (user != null) {
+            return user.uid();
+        }
+        if (request == null || request.uid() == null || request.uid().isBlank()) {
+            return null;
+        }
+        return request.uid().trim();
+    }
+
     private boolean isValidRequest(SavedCalculationRequest request) {
         // Basic request validation to keep persistence layer clean.
         if (request == null || request.ticker() == null || request.ticker().isBlank()) {
@@ -208,5 +220,8 @@ public class SavedCalculationsController {
                     saved.updatedAt()
             );
         }
+    }
+
+    public record UidRequest(String uid) {
     }
 }

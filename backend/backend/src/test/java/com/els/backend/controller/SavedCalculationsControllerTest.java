@@ -34,8 +34,36 @@ class SavedCalculationsControllerTest {
     @Test
     void list_missingAuthorization_returnsUnauthorized() {
         ResponseEntity<List<SavedCalculationsController.SavedCalculationResponse>> response =
-                controller.list(null);
+                controller.list(null, null);
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
+
+    @Test
+    void list_withUidBody_returnsOk() {
+        String testUid = "test-saved-calculation-" + UUID.randomUUID();
+        SavedCalculationStore.SavedCalculation saved =
+                new SavedCalculationStore.SavedCalculation(
+                        42L,
+                        testUid,
+                        "VFIAX",
+                        10000,
+                        10,
+                        1.2,
+                        0.08,
+                        21500,
+                        java.time.Instant.now(),
+                        java.time.Instant.now()
+                );
+        when(savedCalculationStore.listByUid(testUid)).thenReturn(List.of(saved));
+
+        SavedCalculationsController.UidRequest request =
+                new SavedCalculationsController.UidRequest(testUid);
+        ResponseEntity<List<SavedCalculationsController.SavedCalculationResponse>> response =
+                controller.list(null, request);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().size());
     }
 
     @Test
@@ -113,7 +141,7 @@ class SavedCalculationsControllerTest {
         assertEquals("FDGRX", updated.getBody().ticker());
 
         ResponseEntity<List<SavedCalculationsController.SavedCalculationResponse>> listResponse =
-                controller.list("Bearer test-token");
+                controller.list("Bearer test-token", null);
         assertEquals(HttpStatus.OK, listResponse.getStatusCode());
         assertNotNull(listResponse.getBody());
         assertEquals(1, listResponse.getBody().size());

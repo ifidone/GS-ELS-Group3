@@ -23,9 +23,10 @@ public class MonteCarloService{
     // Controls how much expectedReturn varies across simulations.
     // 0.5 means std dev = 50% of the historical expected return.
     // e.g. if expectedReturn = 0.12, sigma = 0.06
-    private static final double VOLTATILITY_FACTOR = 0.5;
+    private static final double VOLATILITY_FACTOR = 0.5;
     private static final int DEFAULT_SIMULATIONS = 1000;
     private static final int MAX_PATHS_TO_STORE = 200;
+    private static final double INFLATION_RATE = 0.03; // 3% average US inflation
 
     public MonteCarloResponse simulate(MonteCarloRequest req) {
         //resolve + validate inputs
@@ -55,7 +56,7 @@ public class MonteCarloService{
         response.setDeterministicFV(round(deterministicFV));
 
         //sigma for sampling: proportional to historical return
-        double sigma = Math.abs(historicalReturn * VOLTATILITY_FACTOR);
+        double sigma = Math.abs(historicalReturn * VOLATILITY_FACTOR);
         //floor sigma so there's even spread if historicalReturn ~ 0
         if (sigma < 0.01) sigma = 0.01;
 
@@ -85,6 +86,18 @@ public class MonteCarloService{
         //sort percentile calculation
         Arrays.sort(finalValues);
 
+        double sharpeRatio = round((historicalReturn - RISK_FREE_RATE) / Math.max(Math.abs(historicalReturn * VOLATILITY_FACTOR), 0.001));
+
+        double riskAdjustedReturn = round(historicalReturn / (beta > 0 ? beta : 1));
+
+        double breakevenYears = round(Math.log(2) /
+                (deterministicRate > 0 ? deterministicRate : 0.01));
+
+        double inflationAdjustedFV = round(principal *
+                Math.exp((deterministicRate - INFLATION_RATE) * timeYears));
+
+        double valueAtRisk = round(principal - percentile(finalValues, 5));
+
         double p10 = percentile(finalValues, 10);
         double p25 = percentile(finalValues, 25);
         double p50 = percentile(finalValues, 50);
@@ -100,6 +113,12 @@ public class MonteCarloService{
         response.setWorstCase(p10);
         response.setMedianCase(p50);
         response.setBestCase(p90);
+
+        response.setSharpeRatio(sharpeRatio);
+        response.setRiskAdjustedReturn(riskAdjustedReturn);
+        response.setBreakevenYears(breakevenYears);
+        response.setInflationAdjustedFV(inflationAdjustedFV);
+        response.setValueAtRisk(valueAtRisk);
 
         //prob of reaching goal
         if (goal > 0) {
@@ -135,6 +154,11 @@ public class MonteCarloService{
         r.setDeterministicFV(0);
         r.setProbabilityOfGoal(goal > 0 ? 0 : -1);
         r.setYearlyPaths(Collections.emptyList());
+        r.setSharpeRatio(0);
+        r.setRiskAdjustedReturn(0);
+        r.setBreakevenYears(0);
+        r.setInflationAdjustedFV(0);
+        r.setValueAtRisk(0);
         return r;
     }
 }

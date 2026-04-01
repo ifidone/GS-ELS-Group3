@@ -26,6 +26,12 @@ public class MonteCarloResponse {
     //yearlyPaths[i][y] = portfolio value at the end of year y for simulation i
     private List<List<Double>> yearlyPaths;
 
+    private double sharpeRatio;
+    private double riskAdjustedReturn;
+    private double breakevenYears;
+    private double inflationAdjustedFV;
+    private double valueAtRisk;
+
     // --- Getters & Setters ---
     public String getTicker()                         { return ticker; }
     public void   setTicker(String v)                 { this.ticker = v; }
@@ -74,4 +80,19 @@ public class MonteCarloResponse {
 
     public List<List<Double>> getYearlyPaths()        { return yearlyPaths; }
     public void setYearlyPaths(List<List<Double>> v)  { this.yearlyPaths = v; }
+
+    public double getSharpeRatio()                  { return sharpeRatio; }
+    public void   setSharpeRatio(double v)          { this.sharpeRatio = v; }
+
+    public double getRiskAdjustedReturn()           { return riskAdjustedReturn; }
+    public void   setRiskAdjustedReturn(double v)   { this.riskAdjustedReturn = v; }
+
+    public double getBreakevenYears()               { return breakevenYears; }
+    public void   setBreakevenYears(double v)       { this.breakevenYears = v; }
+
+    public double getInflationAdjustedFV()          { return inflationAdjustedFV; }
+    public void   setInflationAdjustedFV(double v)  { this.inflationAdjustedFV = v; }
+
+    public double getValueAtRisk()                  { return valueAtRisk; }
+    public void   setValueAtRisk(double v)          { this.valueAtRisk = v; }
 }

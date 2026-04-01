@@ -20,5 +20,5 @@ public class MonteCarloRequest {
     public void setGoalAmount(double v) {this.goalAmount = v;}
 
     public int getNSimulations() {return nSimulations;}
-    public void setNSimulations(int v) {return this.nSimulations = v;}
+    public void setNSimulations(int v) { this.nSimulations = v;}
 }

@@ -51,7 +51,7 @@ public class MonteCarloService{
 
         //deterministic FV for comparison
         double deterministicRate = RISK_FREE_RATE + beta * (historicalReturn - RISK_FREE_RATE);
-        double deterministic FV = principal * Math.exp(deterministicRate * timeYears);
+        double deterministicFV = principal * Math.exp(deterministicRate * timeYears);
         response.setDeterministicFV(round(deterministicFV));
 
         //sigma for sampling: proportional to historical return
@@ -79,7 +79,7 @@ public class MonteCarloService{
             }
             finalValues[i] = path.get(path.size() - 1);
             if (i < MAX_PATHS_TO_STORE) {
-                sampledPaths.add(path)
+                sampledPaths.add(path);
             }
         }
         //sort percentile calculation

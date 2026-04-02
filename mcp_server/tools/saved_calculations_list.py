@@ -1,4 +1,5 @@
 from typing import Any
+import json
 
 from fastmcp import FastMCP
 
@@ -14,7 +15,8 @@ def register(mcp: FastMCP) -> None:
 
         user_sql = "select 1 from users where uid = %s"
         sql = """
-            select id, uid, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+            select id, uid, ticker, initial_investment, years, beta, expected_return, future_value,
+                   time_series, created_at, updated_at
             from saved_calculations
             where uid = %s
             order by created_at desc
@@ -26,4 +28,12 @@ def register(mcp: FastMCP) -> None:
                     raise ValueError("user not found")
                 cursor.execute(sql, (uid.strip(),))
                 rows = cursor.fetchall()
-                return [normalize_row(row) for row in rows]
+                normalized_rows = [normalize_row(row) for row in rows]
+                for row in normalized_rows:
+                    time_series = row.get("time_series")
+                    if isinstance(time_series, str):
+                        try:
+                            row["time_series"] = json.loads(time_series)
+                        except json.JSONDecodeError:
+                            row["time_series"] = {}
+                return normalized_rows

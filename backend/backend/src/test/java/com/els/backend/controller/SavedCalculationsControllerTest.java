@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,6 +53,7 @@ class SavedCalculationsControllerTest {
                         1.2,
                         0.08,
                         21500,
+                        Map.of("0", 10000.0, "10", 21500.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 );
@@ -91,6 +93,7 @@ class SavedCalculationsControllerTest {
                         1.2,
                         0.08,
                         21500,
+                        Map.of("0", 10000.0, "10", 21500.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 );
@@ -107,6 +110,7 @@ class SavedCalculationsControllerTest {
                         1.1,
                         0.07,
                         24800,
+                        Map.of("0", 12000.0, "12", 24800.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 )
@@ -231,6 +235,7 @@ class SavedCalculationsControllerTest {
                         1.2,
                         0.08,
                         21500,
+                        Map.of("0", 10000.0, "10", 21500.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 );

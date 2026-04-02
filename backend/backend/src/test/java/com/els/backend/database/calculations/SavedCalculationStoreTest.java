@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +33,7 @@ class SavedCalculationStoreTest {
                         1.2,
                         0.08,
                         21500,
+                        Map.of("0", 10000.0, "10", 21500.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 );
@@ -57,6 +59,7 @@ class SavedCalculationStoreTest {
                         1.2,
                         0.08,
                         21500,
+                        Map.of("0", 10000.0, "10", 21500.0),
                         java.time.Instant.now(),
                         java.time.Instant.now()
                 );
@@ -65,7 +68,16 @@ class SavedCalculationStoreTest {
 
         SavedCalculationStore.SavedCalculation inserted = store.insert(
                 "uid-1",
-                new SavedCalculationStore.SavedCalculationPayload("VFIAX", "VFIAX", 10000, 10, 1.2, 0.08, 21500)
+                new SavedCalculationStore.SavedCalculationPayload(
+                        "VFIAX",
+                        "VFIAX",
+                        10000,
+                        10,
+                        1.2,
+                        0.08,
+                        21500,
+                        Map.of("0", 10000.0, "10", 21500.0)
+                )
         );
         assertNotNull(inserted);
     }
@@ -79,7 +91,16 @@ class SavedCalculationStoreTest {
 
         Optional<SavedCalculationStore.SavedCalculation> updated =
                 store.update("uid-1", 999999L,
-                        new SavedCalculationStore.SavedCalculationPayload("SWPPX", "SWPPX", 5000, 5, 1.0, 0.05, 6400));
+                        new SavedCalculationStore.SavedCalculationPayload(
+                                "SWPPX",
+                                "SWPPX",
+                                5000,
+                                5,
+                                1.0,
+                                0.05,
+                                6400,
+                                Map.of("0", 5000.0, "5", 6400.0)
+                        ));
         assertTrue(updated.isEmpty());
     }
 

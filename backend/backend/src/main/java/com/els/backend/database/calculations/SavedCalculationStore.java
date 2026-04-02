@@ -4,16 +4,24 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
 public class SavedCalculationStore {
 
     // Reusable mapper for saved_calculations rows.
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Double>> TIME_SERIES_TYPE = new TypeReference<>() {
+    };
     private static final RowMapper<SavedCalculation> ROW_MAPPER = new RowMapper<>() {
         @Override
         public SavedCalculation mapRow(ResultSet rs, int rowNum) throws SQLException {
@@ -27,6 +35,7 @@ public class SavedCalculationStore {
                     rs.getDouble("beta"),
                     rs.getDouble("expected_return"),
                     rs.getDouble("future_value"),
+                    parseTimeSeries(rs.getString("time_series")),
                     rs.getTimestamp("created_at").toInstant(),
                     rs.getTimestamp("updated_at").toInstant()
             );
@@ -42,7 +51,8 @@ public class SavedCalculationStore {
     // Fetch saved calculations for a user, newest first.
     public List<SavedCalculation> listByUid(String uid) {
         String sql = """
-                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value,
+                       time_series::text as time_series, created_at, updated_at
                 from saved_calculations
                 where uid = ?
                 order by created_at desc
@@ -52,7 +62,8 @@ public class SavedCalculationStore {
 
     public List<SavedCalculation> listByUidAndNameLike(String uid, String nameQuery) {
         String sql = """
-                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value,
+                       time_series::text as time_series, created_at, updated_at
                 from saved_calculations
                 where uid = ?
                   and lower(name) like lower(?)
@@ -74,11 +85,13 @@ public class SavedCalculationStore {
                     beta,
                     expected_return,
                     future_value,
+                    time_series,
                     created_at,
                     updated_at
                 )
-                values (?, ?, ?, ?, ?, ?, ?, ?, now(), now())
-                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, now(), now())
+                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value,
+                          time_series::text as time_series, created_at, updated_at
                 """;
         return jdbcTemplate.queryForObject(
                 sql,
@@ -90,7 +103,8 @@ public class SavedCalculationStore {
                 payload.years(),
                 payload.beta(),
                 payload.expectedReturn(),
-                payload.futureValue()
+                payload.futureValue(),
+                serializeTimeSeries(payload.timeSeries())
         );
     }
 
@@ -106,9 +120,11 @@ public class SavedCalculationStore {
                     beta = ?,
                     expected_return = ?,
                     future_value = ?,
+                    time_series = ?::jsonb,
                     updated_at = now()
                 where uid = ? and id = ?
-                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                returning id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value,
+                          time_series::text as time_series, created_at, updated_at
                 """;
         List<SavedCalculation> results = jdbcTemplate.query(
                 sql,
@@ -120,6 +136,7 @@ public class SavedCalculationStore {
                 payload.beta(),
                 payload.expectedReturn(),
                 payload.futureValue(),
+                serializeTimeSeries(payload.timeSeries()),
                 uid,
                 id
         );
@@ -128,7 +145,8 @@ public class SavedCalculationStore {
 
     public Optional<SavedCalculation> getById(String uid, long id) {
         String sql = """
-                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value, created_at, updated_at
+                select id, uid, name, ticker, initial_investment, years, beta, expected_return, future_value,
+                       time_series::text as time_series, created_at, updated_at
                 from saved_calculations
                 where uid = ? and id = ?
                 """;
@@ -152,6 +170,7 @@ public class SavedCalculationStore {
             double beta,
             double expectedReturn,
             double futureValue,
+            Map<String, Double> timeSeries,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -164,7 +183,30 @@ public class SavedCalculationStore {
             double years,
             double beta,
             double expectedReturn,
-            double futureValue
+            double futureValue,
+            Map<String, Double> timeSeries
     ) {
+    }
+
+    private static Map<String, Double> parseTimeSeries(String value) {
+        if (value == null || value.isBlank()) {
+            return Collections.emptyMap();
+        }
+        try {
+            return OBJECT_MAPPER.readValue(value, TIME_SERIES_TYPE);
+        } catch (Exception ex) {
+            return Collections.emptyMap();
+        }
+    }
+
+    private static String serializeTimeSeries(Map<String, Double> timeSeries) {
+        if (timeSeries == null || timeSeries.isEmpty()) {
+            return "{}";
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(timeSeries);
+        } catch (Exception ex) {
+            return "{}";
+        }
     }
 }

@@ -3,7 +3,7 @@ import json
 
 from fastmcp import FastMCP
 
-from db.connection import get_connection, get_dict_cursor, normalize_row
+from app.db.connection import get_connection, get_dict_cursor, normalize_row
 
 
 def register(mcp: FastMCP) -> None:

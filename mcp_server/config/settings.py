@@ -57,3 +57,15 @@ def get_mcp_path() -> str:
     if not path.startswith("/"):
         raise ValueError("MCP_PATH must start with '/'")
     return path
+
+
+def get_backend_base_url() -> str:
+    return os.getenv("BACKEND_BASE_URL", "http://localhost:8080").rstrip("/")
+
+
+def get_backend_timeout_seconds() -> float:
+    raw = os.getenv("BACKEND_TIMEOUT_SECONDS", "10")
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError("BACKEND_TIMEOUT_SECONDS must be a number") from exc

@@ -32,6 +32,7 @@ public class SavedCalculationsController {
 
     // CRUD endpoints for saved calculator runs tied to Firebase-authenticated users.
     private static final Logger logger = LoggerFactory.getLogger(SavedCalculationsController.class);
+    private static final int TIME_SERIES_YEARS = 20;
     private final FirebaseAuthService firebaseAuthService;
     private final AuthStore authStore;
     private final SavedCalculationStore savedCalculationStore;
@@ -200,6 +201,9 @@ public class SavedCalculationsController {
         public SavedCalculationStore.SavedCalculationPayload toPayload() {
             String normalizedTicker = ticker.trim().toUpperCase();
             String resolvedName = (name == null || name.isBlank()) ? normalizedTicker : name.trim();
+            java.util.Map<String, Double> timeSeries =
+                    com.els.backend.service.FutureValueService.computeTimeSeries(
+                            initialInvestment, beta, expectedReturn, TIME_SERIES_YEARS);
             return new SavedCalculationStore.SavedCalculationPayload(
                     resolvedName,
                     normalizedTicker,
@@ -207,7 +211,8 @@ public class SavedCalculationsController {
                     years,
                     beta,
                     expectedReturn,
-                    futureValue
+                    futureValue,
+                    timeSeries
             );
         }
     }
@@ -221,6 +226,7 @@ public class SavedCalculationsController {
             double beta,
             double expectedReturn,
             double futureValue,
+            java.util.Map<String, Double> timeSeries,
             java.time.Instant createdAt,
             java.time.Instant updatedAt
     ) {
@@ -234,6 +240,7 @@ public class SavedCalculationsController {
                     saved.beta(),
                     saved.expectedReturn(),
                     saved.futureValue(),
+                    saved.timeSeries(),
                     saved.createdAt(),
                     saved.updatedAt()
             );
@@ -302,6 +309,7 @@ public class SavedCalculationsController {
         double beta = current.beta();
         double expectedReturn = current.expectedReturn();
         double futureValue = current.futureValue();
+        java.util.Map<String, Double> timeSeries = current.timeSeries();
 
         if (recompute) {
             com.els.backend.service.FutureValueService.FutureValueComputation computation =
@@ -310,6 +318,8 @@ public class SavedCalculationsController {
             beta = computation.beta();
             expectedReturn = computation.expectedReturn();
             futureValue = computation.futureValue();
+            timeSeries = com.els.backend.service.FutureValueService.computeTimeSeries(
+                    updatedInitialInvestment, beta, expectedReturn, TIME_SERIES_YEARS);
         }
 
         SavedCalculationStore.SavedCalculationPayload payload =
@@ -320,7 +330,8 @@ public class SavedCalculationsController {
                         updatedYears,
                         beta,
                         expectedReturn,
-                        futureValue
+                        futureValue,
+                        timeSeries
                 );
 
         return savedCalculationStore.update(uid, calculationId, payload)

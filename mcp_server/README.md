@@ -6,6 +6,7 @@
 - Read-only access to saved calculations in PostgreSQL.
 - `chat_echo` tool that echoes input for integration testing.
 - `saved_calculations_list` tool that checks the `users` table before returning data.
+- `saved_calculations_list` includes `time_series` (year -> value map) when present.
 
 ## Requirements
 - Python 3.11+

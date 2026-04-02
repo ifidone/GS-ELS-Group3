@@ -12,10 +12,11 @@ def register(mcp: FastMCP) -> None:
     service = CalculationsService(backend)
 
     @mcp.tool()
-    def saved_calculations_list(uid: str, search: str | None = None, limit: int | None = None) -> dict:
+    def saved_calculations_list(uid: str, search: str = "", limit: int = 0) -> dict:
         if not uid or not uid.strip():
             return error_response("MISSING_INPUT", "uid is required", ["uid"])
-        result = service.list(uid.strip(), search=search)
+        search_value = search.strip() if isinstance(search, str) else ""
+        result = service.list(uid.strip(), search=search_value or None)
         if isinstance(limit, int) and limit > 0 and isinstance(result.get("items"), list):
             result["items"] = result["items"][:limit]
             result["count"] = len(result["items"])

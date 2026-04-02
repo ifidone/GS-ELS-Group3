@@ -21,24 +21,24 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def funds_suggest_by_goal(goal: str,
-                              years: float | None = None,
-                              risk: str | None = None,
-                              current_ticker: str | None = None) -> dict:
+                              years: float = 0,
+                              risk: str = "",
+                              current_ticker: str = "") -> dict:
         if not goal or not goal.strip():
             return error_response("MISSING_INPUT", "goal is required", ["goal"])
         return recommendation_service.suggest_by_goal(
             goal=goal.strip(),
-            years=years,
-            risk=risk,
-            current_ticker=current_ticker
+            years=years if years and years > 0 else None,
+            risk=risk.strip() if risk else None,
+            current_ticker=current_ticker.strip() if current_ticker else None
         )
 
     @mcp.tool()
     def suggest_alternative_funds(goal: str,
-                                  current_ticker: str | None = None,
-                                  uid: str | None = None) -> dict:
+                                  current_ticker: str = "",
+                                  uid: str = "") -> dict:
         if not goal or not goal.strip():
             return error_response("MISSING_INPUT", "goal is required", ["goal"])
         return recommendation_service.suggest_alternatives(goal=goal.strip(),
-                                                           current_ticker=current_ticker,
-                                                           uid=uid)
+                                                           current_ticker=current_ticker.strip() if current_ticker else None,
+                                                           uid=uid.strip() if uid else None)

@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,7 +56,8 @@ class SavedCalculationStoreIT {
                         10,
                         1.2,
                         0.08,
-                        21500
+                        21500,
+                        Map.of("0", 10000.0, "10", 21500.0)
                 );
 
         SavedCalculationStore.SavedCalculation inserted = savedCalculationStore.insert(testUid, payload);
@@ -75,7 +77,8 @@ class SavedCalculationStoreIT {
                         12,
                         1.1,
                         0.07,
-                        24800
+                        24800,
+                        Map.of("0", 12000.0, "12", 24800.0)
                 );
 
         Optional<SavedCalculationStore.SavedCalculation> updated =
@@ -103,7 +106,8 @@ class SavedCalculationStoreIT {
                         5,
                         1.0,
                         0.05,
-                        6400
+                        6400,
+                        Map.of("0", 5000.0, "5", 6400.0)
                 );
 
         Optional<SavedCalculationStore.SavedCalculation> updated =

@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class CalculatorController {
 
     // Frontend (calculator.ts) sends ticker, initialInvestment, and years to this endpoint.
+    private static final int TIME_SERIES_YEARS = 20;
+
     @PostMapping("/project")
     public ResponseEntity<CalculatorProjectionResponse> project(@RequestBody CalculatorProjectionRequest request) {
         // Basic request validation so backend services receive clean input.
@@ -44,7 +46,13 @@ public class CalculatorController {
                 request.years(),
                 computation.beta(),
                 computation.expectedReturn(),
-                computation.futureValue()
+                computation.futureValue(),
+                FutureValueService.computeTimeSeries(
+                        request.initialInvestment(),
+                        computation.beta(),
+                        computation.expectedReturn(),
+                        TIME_SERIES_YEARS
+                )
         );
 
         return ResponseEntity.ok(response);
@@ -64,7 +72,8 @@ public class CalculatorController {
             double years,
             double beta,
             double expectedReturn,
-            double futureValue
+            double futureValue,
+            java.util.Map<String, Double> timeSeries
     ) {
     }
 }

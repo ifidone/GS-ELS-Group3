@@ -28,11 +28,33 @@ public class FutureValueService {
         double expectedReturnRate = NewtonService.getExpectedReturn(t);
 
         // 3) CAPM rate: r = rf + beta * (expectedReturnRate - rf)
-        double capmRate = RISK_FREE_RATE + beta * (expectedReturnRate - RISK_FREE_RATE);
+        double capmRate = computeCapmRate(beta, expectedReturnRate);
 
         // 4) Future value: FV = principal * e^(r * timeYears)
         double futureValue = principal * Math.exp(capmRate * timeYears);
         return new FutureValueComputation(beta, expectedReturnRate, futureValue);
+    }
+
+    public static double computeCapmRate(double beta, double expectedReturnRate) {
+        return RISK_FREE_RATE + beta * (expectedReturnRate - RISK_FREE_RATE);
+    }
+
+    public static java.util.Map<String, Double> computeTimeSeries(double principal,
+                                                                  double beta,
+                                                                  double expectedReturnRate,
+                                                                  int maxYears) {
+        if (principal <= 0 || maxYears < 0
+                || !Double.isFinite(beta) || !Double.isFinite(expectedReturnRate)) {
+            return java.util.Collections.emptyMap();
+        }
+
+        double capmRate = computeCapmRate(beta, expectedReturnRate);
+        java.util.Map<String, Double> series = new java.util.LinkedHashMap<>();
+        for (int year = 0; year <= maxYears; year += 1) {
+            double value = principal * Math.exp(capmRate * year);
+            series.put(Integer.toString(year), value);
+        }
+        return series;
     }
 
     // // Clean ticker input (null-safe, trim spaces, uppercase)

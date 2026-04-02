@@ -15,6 +15,7 @@ Key files:
 - `backend/backend/src/main/resources/application.properties` contains the datasource and Flyway configuration.
 - `backend/backend/src/main/resources/db/migration/V1__create_users_table.sql` creates the `users` table.
 - `backend/backend/src/main/resources/db/migration/V2__create_saved_calculations_table.sql` creates the `saved_calculations` table.
+- `backend/backend/src/main/resources/db/migration/V11__add_time_series_to_saved_calculations.sql` adds `time_series` JSONB for yearly values.
 
 Run the backend:
 
@@ -107,6 +108,7 @@ Notes:
 - Ownership is enforced via verified Firebase `uid`.
 - `users` is insert-if-missing on save to keep referential integrity intact.
 - `name` is stored with each saved calculation. If omitted on create/update, the ticker is used.
+- Responses include `timeSeries` as a map of year -> value from 0..20 (CAPM-based).
 
 `PATCH /api/saved-calculations/{id}` (uid in body):
 
@@ -121,6 +123,7 @@ Notes:
 ```
 
 If ticker/initialInvestment/years change, the backend recomputes beta/expectedReturn/futureValue.
+Time series is recomputed on create and on update when those inputs change.
 
 `GET /api/saved-calculations` (uid in body, optional `name` query for search):
 

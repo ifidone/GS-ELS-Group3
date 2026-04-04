@@ -72,33 +72,51 @@ Notes:
 
 ## Tools
 Health:
-- `health_check() -> {status, backend}`
+- `health_check(uid?: str) -> {status, backend}`
 
 Chat:
-- `chat_echo(message: str) -> {message}`
+- `chat_echo(message: str, uid?: str) -> {message}`
 
 Saved calculations (uid required):
 - `saved_calculations_list(uid: str, search?: str, limit?: int) -> {items, count}`
+- `calculations_list(uid: str, limit?: int) -> {items, count}`
 - `saved_calculation_detail(uid: str, calculation_id: int) -> {.., timeSeries}`
 - `saved_calculation_time_series(uid: str, calculation_id: int) -> {calculationId, series}`
 - `saved_calculations_compare(uid: str, calculation_ids: list[int]) -> {comparisons}`
+- `saved_calculation_create(uid: str, ticker: str, initial_investment: float, years: float, beta: float, expected_return: float, future_value: float, name?: str)`
+- `saved_calculation_update(uid: str, calculation_id: int, name?: str, ticker?: str, initial_investment?: float, years?: float)`
+- `saved_calculation_delete(uid: str, calculation_id: int)`
+- `saved_calculation_update_with_auth(id_token: str, calculation_id: int, name: str, ticker: str, initial_investment: float, years: float, beta: float, expected_return: float, future_value: float, uid?: str)`
+- `saved_calculation_delete_with_auth(id_token: str, calculation_id: int, uid?: str)`
 
 Projection:
-- `project_calculation(ticker: str, initial_investment: float, years: float)`
+- `project_calculation(ticker: str, initial_investment: float, years: float, uid?: str)`
+- `monte_carlo_simulation(ticker: str, principal: float, time_years: float, goal_amount?: float, n_simulations?: int, uid?: str)`
 
 Portfolios (uid required):
-- `portfolio_list(uid: str) -> {items, count}`
+- `portfolio_list(uid: str, page?: int, size?: int, sort?: str) -> {items, count}`
 - `portfolio_detail(uid: str, name: str)`
 - `portfolio_items(uid: str, name: str) -> {items, count}`
+- `portfolio_create(uid: str, name: str, description?: str)`
+- `portfolio_update(uid: str, name: str, new_name?: str, description?: str)`
+- `portfolio_delete(uid: str, name: str)`
+- `portfolio_add_item(uid: str, name: str, calculation_id: int)`
+- `portfolio_remove_item(uid: str, name: str, calculation_id: int)`
+- `portfolio_available_calculations(uid: str, name: str)`
+- `portfolio_total_investment(uid: str)`
 
 Funds:
-- `funds_list() -> {items, count}`
-- `fund_detail(ticker: str)`
+- `funds_list(uid?: str) -> {items, count}`
+- `fund_detail(ticker: str, uid?: str)`
 
 Recommendations:
-- `funds_suggest_by_goal(goal: str, years?: float, risk?: str, current_ticker?: str)`
-- `compare_funds(tickers: list[str])`
+- `funds_suggest_by_goal(goal: str, years?: float, risk?: str, current_ticker?: str, uid?: str)`
+- `compare_funds(tickers: list[str], uid?: str)`
 - `suggest_alternative_funds(goal: str, current_ticker?: str, uid?: str)`
+- `funds_projection_recommendations(principal: float, years: float, risk?: str, top_n?: int, goal_amount?: float, uid?: str)`
+
+Auth:
+- `auth_sync(id_token: str, uid?: str)`
 
 ## Response Normalization
 - List tools return summary data only (no time series).

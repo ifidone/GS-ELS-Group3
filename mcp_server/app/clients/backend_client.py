@@ -28,34 +28,51 @@ class BackendClient:
 
     def get(self, path: str,
             params: Optional[dict[str, Any]] = None,
-            json_body: Optional[dict[str, Any]] = None) -> BackendResponse:
+            json_body: Optional[dict[str, Any]] = None,
+            headers: Optional[dict[str, str]] = None) -> BackendResponse:
         try:
             with httpx.Client(timeout=self._timeout) as client:
-                response = client.request("GET", self._url(path), params=params, json=json_body)
+                response = client.request("GET", self._url(path), params=params, json=json_body, headers=headers)
                 return BackendResponse(response.status_code, self._parse_json(response))
         except httpx.HTTPError as exc:
             return BackendResponse(503, {"error": True, "message": str(exc)})
 
-    def post(self, path: str, json_body: Optional[dict[str, Any]] = None) -> BackendResponse:
+    def post(self, path: str,
+             json_body: Optional[dict[str, Any]] = None,
+             headers: Optional[dict[str, str]] = None) -> BackendResponse:
         try:
             with httpx.Client(timeout=self._timeout) as client:
-                response = client.post(self._url(path), json=json_body)
+                response = client.post(self._url(path), json=json_body, headers=headers)
                 return BackendResponse(response.status_code, self._parse_json(response))
         except httpx.HTTPError as exc:
             return BackendResponse(503, {"error": True, "message": str(exc)})
 
-    def patch(self, path: str, json_body: Optional[dict[str, Any]] = None) -> BackendResponse:
+    def patch(self, path: str,
+              json_body: Optional[dict[str, Any]] = None,
+              headers: Optional[dict[str, str]] = None) -> BackendResponse:
         try:
             with httpx.Client(timeout=self._timeout) as client:
-                response = client.patch(self._url(path), json=json_body)
+                response = client.patch(self._url(path), json=json_body, headers=headers)
                 return BackendResponse(response.status_code, self._parse_json(response))
         except httpx.HTTPError as exc:
             return BackendResponse(503, {"error": True, "message": str(exc)})
 
-    def put(self, path: str, json_body: Optional[dict[str, Any]] = None) -> BackendResponse:
+    def put(self, path: str,
+            json_body: Optional[dict[str, Any]] = None,
+            headers: Optional[dict[str, str]] = None) -> BackendResponse:
         try:
             with httpx.Client(timeout=self._timeout) as client:
-                response = client.put(self._url(path), json=json_body)
+                response = client.put(self._url(path), json=json_body, headers=headers)
+                return BackendResponse(response.status_code, self._parse_json(response))
+        except httpx.HTTPError as exc:
+            return BackendResponse(503, {"error": True, "message": str(exc)})
+
+    def delete(self, path: str,
+               json_body: Optional[dict[str, Any]] = None,
+               headers: Optional[dict[str, str]] = None) -> BackendResponse:
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.request("DELETE", self._url(path), json=json_body, headers=headers)
                 return BackendResponse(response.status_code, self._parse_json(response))
         except httpx.HTTPError as exc:
             return BackendResponse(503, {"error": True, "message": str(exc)})

@@ -4,8 +4,14 @@ import { AuthPageComponent } from './pages/auth-page/auth-page';
 import { CalculatorComponent } from './pages/calculator/calculator';
 import { DashboardHomeComponent } from './pages/dashboard-home/dashboard-home';
 import { DashboardShellComponent } from './pages/dashboard-shell/dashboard-shell';
+import { LandingPageComponent } from './pages/landing/landing';
 
 export const routes: Routes = [
+  {
+    path: '',
+    component: LandingPageComponent,
+    canActivate: [publicOnlyGuard],
+  },
   {
     path: 'auth',
     component: AuthPageComponent,
@@ -27,12 +33,7 @@ export const routes: Routes = [
     ],
   },
   {
-    path: '',
-    pathMatch: 'full',
-    redirectTo: 'dashboard',
-  },
-  {
     path: '**',
-    redirectTo: 'dashboard',
+    redirectTo: '',
   },
 ];

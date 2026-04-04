@@ -1,7 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthFacade } from '../../core/auth.facade';
 
 @Component({
@@ -11,12 +11,24 @@ import { AuthFacade } from '../../core/auth.facade';
   templateUrl: './auth-page.html',
   styleUrl: './auth-page.css',
 })
-export class AuthPageComponent {
+export class AuthPageComponent implements OnInit {
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly authFacade = inject(AuthFacade);
 
   authMode: 'login' | 'signup' = 'login';
   authErrorMessage = '';
+
+  ngOnInit(): void {
+    this.route.queryParamMap.subscribe((params) => {
+      const mode = params.get('mode');
+      if (mode === 'signup') {
+        this.authMode = 'signup';
+      } else if (mode === 'login') {
+        this.authMode = 'login';
+      }
+    });
+  }
 
   loginEmail = '';
   loginPassword = '';

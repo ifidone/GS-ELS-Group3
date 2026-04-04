@@ -310,7 +310,14 @@ export class CalculatorComponent implements OnInit, OnDestroy {
         console.error('Compare projection failed (both)', err);
         this.projectionError = this.projectionErrorMessage(err);
       } else {
-        const err = outA.status === 'rejected' ? outA.reason : outB.reason;
+        let err: unknown;
+        if (outA.status === 'rejected') {
+          err = outA.reason;
+        } else if (outB.status === 'rejected') {
+          err = outB.reason;
+        } else {
+          err = new Error('Compare projection failed');
+        }
         console.error('Compare projection partial failure', err);
         this.projectionError =
           'One fund failed to project. Check tickers or try again. Details: ' +

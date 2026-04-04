@@ -2,6 +2,7 @@ package com.els.backend.controller;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/chat")
 @CrossOrigin(origins = "${app.frontend-origin}")
+@ConditionalOnProperty(name = "app.chat.enabled", havingValue = "true")
 public class ChatController {
 
     private final ChatClient chatClient;

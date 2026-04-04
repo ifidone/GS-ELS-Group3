@@ -1,15 +1,133 @@
 <section class="calculator-page">
-  <div class="hero-copy">
-    <div class="hero-copy-eyebrow">Protected tool</div>
-    <h1 class="hero-title">
-      Model your
-      <span class="hero-highlight">mutual fund outcomes</span>
-      with desk-grade clarity.
-    </h1>
-    <p class="hero-subtitle">
-      This calculator page is protected by the dashboard guard, so authentication and session
-      handling stay outside the feature component.
-    </p>
+  <div class="left-rail">
+    <div class="hero-copy">
+      <div class="hero-copy-eyebrow">Protected tool</div>
+      <h1 class="hero-title">
+        Model your
+        <span class="hero-highlight">mutual fund outcomes</span>
+        with desk-grade clarity.
+      </h1>
+      <p class="hero-subtitle">
+        This calculator page is protected by the dashboard guard, so authentication and session
+        handling stay outside the feature component.
+      </p>
+    </div>
+
+    <aside class="projection-panel">
+      <div class="projection-panel-header">
+        <div>
+          <p class="projection-panel-eyebrow">{{ projectionChartModel.title }}</p>
+          <h2 class="projection-panel-title">{{ projectionChartModel.durationLabel }}</h2>
+        </div>
+        <div class="projection-panel-future">
+          <span>Future window</span>
+          <strong>{{ projectionChartModel.endLabel }}</strong>
+        </div>
+      </div>
+
+      <p class="projection-panel-copy">{{ projectionChartModel.subtitle }}</p>
+
+      <ng-container *ngIf="!projectionChartModel.empty; else projectionChartEmpty">
+        <div class="projection-chart-wrap">
+          <svg
+            class="projection-chart"
+            [attr.viewBox]="'0 0 ' + projectionChartModel.width + ' ' + projectionChartModel.height"
+            role="img"
+            aria-label="Projection chart"
+            preserveAspectRatio="none"
+          >
+            <ng-container *ngFor="let tick of projectionChartModel.ticks">
+              <line
+                class="projection-grid-line"
+                [attr.x1]="14"
+                [attr.x2]="projectionChartModel.width - 14"
+                [attr.y1]="tick.y"
+                [attr.y2]="tick.y"
+              />
+              <text class="projection-grid-label" x="16" [attr.y]="tick.y - 6">{{ tick.label }}</text>
+            </ng-container>
+
+            <line
+              class="projection-duration-marker"
+              [attr.x1]="projectionChartModel.durationX"
+              [attr.x2]="projectionChartModel.durationX"
+              y1="16"
+              [attr.y2]="projectionChartModel.height - 34"
+            />
+
+            <ng-container *ngFor="let line of projectionChartModel.series">
+              <path
+                class="projection-line"
+                [attr.d]="line.solidPath"
+                [attr.stroke]="line.color"
+              />
+              <path
+                class="projection-line projection-line--dashed"
+                [attr.d]="line.dashedPath"
+                [attr.stroke]="line.color"
+              />
+            </ng-container>
+
+            <ng-container *ngIf="chartTooltip as tooltip">
+              <circle
+                *ngFor="let entry of tooltip.entries"
+                class="projection-hover-dot"
+                [attr.cx]="tooltip.anchorX"
+                [attr.cy]="entry.pointY"
+                r="4.5"
+                [attr.fill]="entry.color"
+              />
+            </ng-container>
+
+            <ng-container *ngFor="let tick of projectionChartModel.xTicks">
+              <text class="projection-axis-label" [attr.x]="tick.x" [attr.y]="projectionChartModel.height - 8">
+                {{ tick.label }}
+              </text>
+            </ng-container>
+
+            <rect
+              class="projection-hover-capture"
+              x="14"
+              y="16"
+              [attr.width]="projectionChartModel.width - 28"
+              [attr.height]="projectionChartModel.height - 50"
+              (mousemove)="onChartHover($event, projectionChartModel)"
+              (mouseleave)="clearChartHover()"
+            />
+          </svg>
+
+          <div
+            *ngIf="chartTooltip as tooltip"
+            class="projection-tooltip"
+            [style.left.px]="tooltip.popupX"
+            [style.top.px]="tooltip.popupY"
+          >
+            <div class="projection-tooltip-time">{{ tooltip.timeLabel }}</div>
+            <div class="projection-tooltip-row" *ngFor="let entry of tooltip.entries">
+              <span class="projection-tooltip-swatch" [style.--swatch]="entry.color"></span>
+              <span class="projection-tooltip-ticker">{{ entry.ticker }}</span>
+              <span class="projection-tooltip-value">{{ compactCurrency(entry.value) }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="projection-legend">
+          <div class="projection-legend-item" *ngFor="let line of projectionChartModel.series">
+            <span class="projection-legend-swatch" [style.--swatch]="line.color"></span>
+            <span class="projection-legend-ticker">{{ line.ticker }}</span>
+            <span class="projection-legend-value">{{ compactCurrency(line.durationValue) }}</span>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-template #projectionChartEmpty>
+        <div class="projection-empty">
+          Select a fund and amount to preview the projection curve here. Once a result loads, the
+          chart will show the chosen duration in a solid line and the post-horizon growth as a dashed
+          continuation.
+        </div>
+      </ng-template>
+    </aside>
   </div>
 
   <section class="glass-card">
@@ -146,6 +264,34 @@
             <span class="duration-number">{{ horizonLabelFromMonths(durationMonths) }}</span>
           </span>
         </div>
+        <div class="duration-manual-grid">
+          <div class="duration-manual-field">
+            <span class="duration-manual-label">Years</span>
+            <input
+              id="duration-years"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              [max]="durationMaxMonths / 12"
+              [ngModel]="durationWholeYears"
+              (ngModelChange)="onDurationYearsInputChange($event)"
+              name="durationYears"
+            />
+          </div>
+          <div class="duration-manual-field">
+            <span class="duration-manual-label">Months</span>
+            <input
+              id="duration-months"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="11"
+              [ngModel]="durationRemainderMonths"
+              (ngModelChange)="onDurationMonthsInputChange($event)"
+              name="durationRemainderMonths"
+            />
+          </div>
+        </div>
         <input
           id="duration-slider"
           type="range"
@@ -172,8 +318,8 @@
           <ng-container *ngIf="calculatorMode === 'compare'">Save both to history</ng-container>
         </button>
         <p class="actions-hint" *ngIf="calculatorMode === 'single'">
-          Drag from <strong>1 month</strong> up to <strong>60 years</strong>; the API uses fractional
-          years under the hood. Use the button to store a snapshot in your saved calculations.
+          Type years and months directly or drag from <strong>1 month</strong> up to
+          <strong>60 years</strong>. Use the button to store a snapshot in your saved calculations.
         </p>
         <p class="actions-hint" *ngIf="calculatorMode === 'compare'">
           Saves <strong>both</strong> projections when you’re signed in (same rules as single mode).
@@ -188,7 +334,7 @@
 
         <div>
           <div class="results-label">Fund</div>
-          <div class="results-value">{{ result.fund }}</div>
+          <div class="results-value">{{ result.ticker }}</div>
         </div>
 
         <div>
@@ -209,7 +355,7 @@
         <div class="results-future-wrap">
           <div class="results-label">Projected future value</div>
           <div class="results-value results-future" [class.results-future--loading]="projectionLoading">
-            ${{ result.futureValue }}
+            ${{ result.futureValue | number: '1.2-2' }}
             <span *ngIf="projectionLoading" class="results-updating" aria-live="polite">Updating…</span>
           </div>
         </div>

@@ -3,6 +3,7 @@
 ## Backend Features
 
 - Spring Boot REST APIs for auth sync, calculator projection, and saved calculations.
+- Monte Carlo simulation endpoint for portfolio growth probability analysis.
 - New `/api/chat` endpoint that uses Gemini 2.5 Flash with MCP tool calling.
 - MCP client connects to the FastMCP server for tool execution.
 
@@ -60,6 +61,27 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 - `spring.ai.google.genai.chat.options.model` for the model name.
 - `spring.ai.mcp.client.streamable-http.connections.mcp.url` for MCP server base URL (fallback env `MCP_SERVER_ORIGIN`).
 - `spring.ai.mcp.client.streamable-http.connections.mcp.endpoint` for MCP endpoint path (fallback env `MCP_SERVER_ENDPOINT`).
+
+## Monte Carlo API
+
+```
+POST /api/monte-carlo
+```
+
+Request:
+```json
+{
+  "ticker": "VFIAX",
+  "principal": 10000,
+  "timeYears": 10,
+  "goalAmount": 25000,
+  "nSimulations": 1000
+}
+```
+
+Notes:
+- `goalAmount` and `nSimulations` are optional.
+- The response includes the simulated distribution and probability metrics returned by the backend service.
 
 ## Saved Calculations API
 

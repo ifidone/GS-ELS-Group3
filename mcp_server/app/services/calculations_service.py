@@ -23,6 +23,15 @@ class CalculationsService:
             items.append(_summary_item(row))
         return {"items": items, "count": len(items)}
 
+    def list_calculations_endpoint(self, uid: str) -> dict[str, Any]:
+        response = self._backend.get("/api/calculations", json_body={"uid": uid})
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to load calculations.")
+        items = []
+        for row in response.data or []:
+            items.append(_summary_item(row))
+        return {"items": items, "count": len(items)}
+
     def detail(self, uid: str, calculation_id: int) -> dict[str, Any]:
         response = self._backend.get("/api/saved-calculations", json_body={"uid": uid})
         if response.status_code >= 400:
@@ -73,6 +82,107 @@ class CalculationsService:
             "expectedReturn": data.get("expectedReturn"),
             "series": normalize_time_series_map(data.get("timeSeries") or {})
         }
+
+    def create(self,
+               uid: str,
+               name: str | None,
+               ticker: str,
+               initial_investment: float,
+               years: float,
+               beta: float,
+               expected_return: float,
+               future_value: float) -> dict[str, Any]:
+        response = self._backend.post("/api/calculations", json_body={
+            "uid": uid,
+            "name": name,
+            "ticker": ticker,
+            "initialInvestment": initial_investment,
+            "years": years,
+            "beta": beta,
+            "expectedReturn": expected_return,
+            "futureValue": future_value
+        })
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to create saved calculation.")
+        return _detail_item(response.data or {})
+
+    def patch(self,
+              uid: str,
+              calculation_id: int,
+              name: str | None = None,
+              ticker: str | None = None,
+              initial_investment: float | None = None,
+              years: float | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"uid": uid}
+        if name is not None:
+            payload["name"] = name
+        if ticker is not None:
+            payload["ticker"] = ticker
+        if initial_investment is not None:
+            payload["initialInvestment"] = initial_investment
+        if years is not None:
+            payload["years"] = years
+        response = self._backend.patch(f"/api/saved-calculations/{calculation_id}", json_body=payload)
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to update saved calculation.")
+        return _detail_item(response.data or {})
+
+    def delete(self, uid: str, calculation_id: int) -> dict[str, Any]:
+        response = self._backend.delete(f"/api/saved-calculations/{calculation_id}", json_body={"uid": uid})
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to delete saved calculation.")
+        return {"deleted": True}
+
+    def update_with_auth(self,
+                         id_token: str,
+                         calculation_id: int,
+                         name: str,
+                         ticker: str,
+                         initial_investment: float,
+                         years: float,
+                         beta: float,
+                         expected_return: float,
+                         future_value: float) -> dict[str, Any]:
+        headers = {"Authorization": f"Bearer {id_token}"}
+        response = self._backend.put(f"/api/calculations/{calculation_id}", json_body={
+            "name": name,
+            "ticker": ticker,
+            "initialInvestment": initial_investment,
+            "years": years,
+            "beta": beta,
+            "expectedReturn": expected_return,
+            "futureValue": future_value
+        }, headers=headers)
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to update calculation.")
+        return _detail_item(response.data or {})
+
+    def delete_with_auth(self, id_token: str, calculation_id: int) -> dict[str, Any]:
+        headers = {"Authorization": f"Bearer {id_token}"}
+        response = self._backend.delete(f"/api/calculations/{calculation_id}", headers=headers)
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to delete calculation.")
+        return {"deleted": True}
+
+    def monte_carlo(self,
+                    ticker: str,
+                    principal: float,
+                    time_years: float,
+                    goal_amount: float | None = None,
+                    n_simulations: int | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "ticker": ticker,
+            "principal": principal,
+            "timeYears": time_years
+        }
+        if goal_amount is not None:
+            payload["goalAmount"] = goal_amount
+        if n_simulations is not None:
+            payload["nSimulations"] = n_simulations
+        response = self._backend.post("/api/monte-carlo", json_body=payload)
+        if response.status_code >= 400:
+            return _error_response(response.status_code, "Failed to run Monte Carlo simulation.")
+        return response.data or {}
 
 
 def _summary_item(row: dict[str, Any]) -> dict[str, Any]:

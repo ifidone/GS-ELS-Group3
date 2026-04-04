@@ -12,11 +12,11 @@ def register(mcp: FastMCP) -> None:
     service = FundsService(backend)
 
     @mcp.tool()
-    def funds_list() -> dict:
+    def funds_list(uid: str = "") -> dict:
         return service.list()
 
     @mcp.tool()
-    def fund_detail(ticker: str) -> dict:
+    def fund_detail(ticker: str, uid: str = "") -> dict:
         if not ticker or not ticker.strip():
             return error_response("MISSING_INPUT", "ticker is required", ["ticker"])
         return service.detail(ticker.strip().upper())

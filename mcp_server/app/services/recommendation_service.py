@@ -41,7 +41,7 @@ class RecommendationService:
 
 
 def _filter_by_goal(items: list[dict[str, Any]], goal: str, current_ticker: str | None) -> list[dict[str, Any]]:
-    normalized_goal = (goal or "").lower()
+    normalized_goal = _normalize_goal(goal)
     result: list[dict[str, Any]] = []
 
     for fund in items:
@@ -50,7 +50,7 @@ def _filter_by_goal(items: list[dict[str, Any]], goal: str, current_ticker: str 
             continue
         category = (fund.get("category") or "").lower()
 
-        if normalized_goal in {"aggressive_growth", "more_profit"}:
+        if normalized_goal in {"aggressive_growth", "more_profit", "high_risk"}:
             if "growth" in category or "small" in category or "mid" in category:
                 result.append(_candidate(fund, "growth-oriented category", "higher volatility expected"))
         elif normalized_goal == "lower_risk":
@@ -59,12 +59,28 @@ def _filter_by_goal(items: list[dict[str, Any]], goal: str, current_ticker: str 
         elif normalized_goal == "diversification":
             if "international" in category or "bond" in category or "blend" in category:
                 result.append(_candidate(fund, "diversification benefit", "mix across categories"))
+        elif normalized_goal == "balanced":
+            if "blend" in category or "balanced" in category:
+                result.append(_candidate(fund, "balanced category exposure", "moderate volatility expected"))
 
     if not result:
         for fund in items[:5]:
             result.append(_candidate(fund, "broad market exposure", "review fit with your risk level"))
 
     return result[:5]
+
+
+def _normalize_goal(goal: str) -> str:
+    normalized = (goal or "").strip().lower()
+    if normalized in {"aggressive", "aggressive investment", "high risk", "high-risk", "growth"}:
+        return "aggressive_growth"
+    if normalized in {"low risk", "low-risk", "conservative", "capital preservation"}:
+        return "lower_risk"
+    if normalized in {"diversify", "diversification", "spread risk"}:
+        return "diversification"
+    if normalized in {"balanced", "moderate", "medium risk", "medium-risk"}:
+        return "balanced"
+    return normalized
 
 
 def _candidate(fund: dict[str, Any], reason: str, risk_note: str) -> dict[str, Any]:

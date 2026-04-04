@@ -3,7 +3,8 @@
 ## Backend Features
 
 - Spring Boot REST APIs for auth sync, calculator projection, and saved calculations.
-- New `/api/chat` endpoint that uses Gemini 2.5 Flash with MCP tool calling.
+- Monte Carlo simulation endpoint for portfolio growth probability analysis.
+- `/api/chat` endpoint that uses OpenAI (Spring AI) with MCP tool calling.
 - MCP client connects to the FastMCP server for tool execution.
 
 ## Backend Database Setup
@@ -34,7 +35,7 @@ Notes:
 - If your database credentials change, update them in `backend/backend/src/main/resources/application.properties`.
 - Flyway creates `flyway_schema_history` and applies migrations on startup.
 
-## Chat API (Gemini + MCP)
+## Chat API (OpenAI + MCP)
 
 ```
 POST /api/chat
@@ -56,10 +57,38 @@ Response:
 ```
 
 Configuration (in `backend/backend/src/main/resources/application.properties`):
-- `spring.ai.google.genai.api-key` for Gemini API key (fallback env `ApiKey`).
-- `spring.ai.google.genai.chat.options.model` for the model name.
+- `spring.ai.model.chat=openai`
+- `spring.ai.openai.api-key` uses `OPENAI_API_KEY` loaded from `.env`.
+- `spring.ai.openai.chat.options.model` for the model name (e.g., `gpt-4.1-mini`).
 - `spring.ai.mcp.client.streamable-http.connections.mcp.url` for MCP server base URL (fallback env `MCP_SERVER_ORIGIN`).
 - `spring.ai.mcp.client.streamable-http.connections.mcp.endpoint` for MCP endpoint path (fallback env `MCP_SERVER_ENDPOINT`).
+
+Create `backend/backend/.env`:
+
+```bash
+OPENAI_API_KEY=your_key_here
+```
+
+## Monte Carlo API
+
+```
+POST /api/monte-carlo
+```
+
+Request:
+```json
+{
+  "ticker": "VFIAX",
+  "principal": 10000,
+  "timeYears": 10,
+  "goalAmount": 25000,
+  "nSimulations": 1000
+}
+```
+
+Notes:
+- `goalAmount` and `nSimulations` are optional.
+- The response includes the simulated distribution and probability metrics returned by the backend service.
 
 ## Saved Calculations API
 

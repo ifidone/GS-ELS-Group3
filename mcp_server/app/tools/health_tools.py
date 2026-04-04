@@ -9,7 +9,7 @@ def register(mcp: FastMCP) -> None:
     backend = BackendClient()
 
     @mcp.tool()
-    def health_check() -> dict:
+    def health_check(uid: str = "") -> dict:
         response = backend.get("/api/funds")
         backend_status = "reachable" if response.status_code < 500 else "error"
         return {

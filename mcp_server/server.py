@@ -2,6 +2,7 @@ from fastmcp import FastMCP
 from config.settings import get_host_port, get_mcp_path
 from app.routes.health import register as register_health
 from app.tools.chat_tools import register as register_chat
+from app.tools.auth_tools import register as register_auth
 from app.tools.calculation_tools import register as register_calculations
 from app.tools.fund_tools import register as register_funds
 from app.tools.health_tools import register as register_health_tools
@@ -12,6 +13,7 @@ mcp = FastMCP("mcp-server")
 
 register_health(mcp)
 register_chat(mcp)
+register_auth(mcp)
 register_health_tools(mcp)
 register_calculations(mcp)
 register_funds(mcp)

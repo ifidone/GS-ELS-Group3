@@ -107,7 +107,7 @@
 
       <ng-container *ngFor="let msg of messages">
         <p class="msg-user" *ngIf="msg.sender === 'User'">{{ msg.text }}</p>
-        <p class="msg-bot" *ngIf="msg.sender === 'Bot'">{{ msg.text }}</p>
+        <div class="msg-bot msg-bot--rich" *ngIf="msg.sender === 'Bot'" [innerHTML]="msg.html ?? msg.text"></div>
       </ng-container>
 
       <p class="msg-bot msg-bot--followup" *ngIf="messages.length > 0 && !isLoading">

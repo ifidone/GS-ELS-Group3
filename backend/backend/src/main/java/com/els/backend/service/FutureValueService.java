@@ -36,7 +36,8 @@ public class FutureValueService {
     }
 
     public static double computeCapmRate(double beta, double expectedReturnRate) {
-        return RISK_FREE_RATE + beta * (expectedReturnRate - RISK_FREE_RATE);
+        double raw = RISK_FREE_RATE + beta * (expectedReturnRate - RISK_FREE_RATE);
+        return Math.max(RISK_FREE_RATE, raw);
     }
 
     public static java.util.Map<String, Double> computeTimeSeries(double principal,

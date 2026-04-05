@@ -17,7 +17,6 @@ public class NewtonService {
         try{
             Response response = restTemplate.getForObject(url, Response.class);
             if(response != null && response.getData()!=null && !response.getData().isEmpty()){
-                System.out.println(response.getData());
                 List<List<Object>> prices = response.getData();
                 //gets the last price in the listings
                 double lastPrice = Double.parseDouble(prices.get(0).get(1).toString());
@@ -26,7 +25,7 @@ public class NewtonService {
                 return (lastPrice - firstPrice) / firstPrice;
             }
         } catch(Exception e) {
-            e.printStackTrace();
+            System.err.println("Failed to fetch Newton prices for ticker=" + ticker + ": " + e.getMessage());
         }
         return 0.00;
     }

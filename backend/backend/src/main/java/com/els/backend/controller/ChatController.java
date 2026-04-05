@@ -1,6 +1,10 @@
 package com.els.backend.controller;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -10,6 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -59,23 +66,93 @@ public class ChatController {
                 - For comparisons, provide 2-5 options with a short reason and a risk note.
                 - The user's uid is always provided in the request; never ask the user for uid.
 
-                If you call any tool, always include the user's uid argument exactly as provided:
-                uid=%s
+                User uid (use this for all tool calls; never ask the user for it): %s
                 """.formatted(request.uid().trim());
 
-        String reply = chatClient.prompt()
-                .system(systemPrompt)
-                .user(request.message().trim())
-                .toolCallbacks(toolCallbackProvider)
-                .call()
-                .content();
+        String reply = callWithRetry(systemPrompt, request.message().trim(), request.history(), 2);
 
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 
-    public record ChatRequest(String message, String uid) {
+    private String callWithRetry(String systemPrompt,
+                                 String message,
+                                 List<HistoryMessage> history,
+                                 int maxAttempts) {
+        int attempt = 0;
+        RuntimeException lastException = null;
+        while (attempt < maxAttempts) {
+            attempt++;
+            try {
+                PromptPayload promptPayload = buildPrompt(systemPrompt, message, history);
+                return chatClient.prompt(promptPayload.prompt())
+                        .toolCallbacks(toolCallbackProvider)
+                        .call()
+                        .content();
+            } catch (RuntimeException ex) {
+                lastException = ex;
+                if (!isTimeoutException(ex) || attempt >= maxAttempts) {
+                    break;
+                }
+                try {
+                    Thread.sleep(500L);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        String fallback = "The data tools are taking longer than expected. Please try again in a moment.";
+        if (lastException != null && lastException.getMessage() != null) {
+            fallback += " (Last error: " + lastException.getMessage() + ")";
+        }
+        return fallback;
+    }
+
+    private PromptPayload buildPrompt(String systemPrompt, String message, List<HistoryMessage> history) {
+        List<Message> messages = new ArrayList<>();
+        messages.add(new SystemMessage(systemPrompt));
+        if (history != null && !history.isEmpty()) {
+            int start = Math.max(0, history.size() - 10);
+            for (HistoryMessage item : history.subList(start, history.size())) {
+                if (item == null || item.content() == null || item.content().isBlank()) {
+                    continue;
+                }
+                String role = item.role() == null ? "" : item.role().trim().toLowerCase();
+                if ("assistant".equals(role)) {
+                    messages.add(new AssistantMessage(item.content().trim()));
+                } else if ("user".equals(role)) {
+                    messages.add(new UserMessage(item.content().trim()));
+                }
+            }
+        }
+        messages.add(new UserMessage(message));
+        return new PromptPayload(new org.springframework.ai.chat.prompt.Prompt(messages));
+    }
+
+    private boolean isTimeoutException(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            if (current instanceof java.util.concurrent.TimeoutException) {
+                return true;
+            }
+            String msg = current.getMessage();
+            if (msg != null && msg.contains("TimeoutException")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    public record ChatRequest(String message, String uid, List<HistoryMessage> history) {
     }
 
     public record ChatResponse(String reply) {
+    }
+
+    public record HistoryMessage(String role, String content) {
+    }
+
+    private record PromptPayload(org.springframework.ai.chat.prompt.Prompt prompt) {
     }
 }

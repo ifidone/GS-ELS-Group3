@@ -45,7 +45,11 @@ Request:
 ```json
 {
   "message": "Show my saved calculations",
-  "uid": "firebase_uid"
+  "uid": "firebase_uid",
+  "history": [
+    { "role": "user", "content": "Earlier question" },
+    { "role": "assistant", "content": "Earlier reply" }
+  ]
 }
 ```
 
@@ -62,6 +66,8 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 - `spring.ai.openai.chat.options.model` for the model name (e.g., `gpt-4.1-mini`).
 - `spring.ai.mcp.client.streamable-http.connections.mcp.url` for MCP server base URL (fallback env `MCP_SERVER_ORIGIN`).
 - `spring.ai.mcp.client.streamable-http.connections.mcp.endpoint` for MCP endpoint path (fallback env `MCP_SERVER_ENDPOINT`).
+- `spring.ai.mcp.client.request-timeout` controls MCP tool timeout (default `60s`).
+- `app.chat.enabled` toggles the chat controller (default `true`).
 
 Create `backend/backend/.env`:
 

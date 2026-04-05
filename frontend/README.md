@@ -119,6 +119,31 @@ POST /api/calculator/project
 
 This is a normal feature request and is separate from Firebase authentication logic.
 
+### 3. Mutual Fund List
+
+The calculator loads the full mutual fund list from:
+
+```text
+GET /api/funds
+```
+
+If the request fails, the UI falls back to a small default list.
+
+### 4. Chat History
+
+The chatbot stores the last 10 messages per user in `localStorage` and sends them with each request:
+
+```json
+{
+  "message": "Hello",
+  "uid": "firebase_uid",
+  "history": [
+    { "role": "user", "content": "Earlier question" },
+    { "role": "assistant", "content": "Earlier reply" }
+  ]
+}
+```
+
 ## Separation Of Responsibility
 
 The frontend is structured so that authentication logic is separate from feature pages.

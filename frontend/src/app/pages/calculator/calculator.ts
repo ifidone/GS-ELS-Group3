@@ -71,6 +71,12 @@ type SavedCalculation = {
   updatedAt: string;
 };
 
+type FundOption = {
+  ticker: string;
+  name: string;
+  category?: string;
+};
+
 /**
  * Accepts plain numbers and shorthand: 15k, 1.5M, $250,000, 2.5b (k/m/b = thousand / million / billion).
  */
@@ -106,13 +112,17 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   private authFacade = inject(AuthFacade);
   private readonly calculatorApiUrl = `${environment.apiBaseUrl}/api/calculator/project`;
   private readonly calculationsApiUrl = `${environment.apiBaseUrl}/api/calculations`;
+  private readonly fundsApiUrl = `${environment.apiBaseUrl}/api/funds`;
   private lastHistoryUid: string | null = null;
 
-  funds = [
+  private readonly fallbackFunds: FundOption[] = [
     { name: 'Vanguard 500 Index', ticker: 'VFIAX' },
     { name: 'Fidelity Growth Fund', ticker: 'FDGRX' },
     { name: 'Schwab S&P 500 Index', ticker: 'SWPPX' },
   ];
+  funds: FundOption[] = [...this.fallbackFunds];
+  fundsLoading = false;
+  fundsError = '';
 
   /**
    * Slider uses whole months (backend accepts fractional years = months / 12).
@@ -170,12 +180,38 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    void this.loadFunds();
     void this.loadHistory();
   }
 
   ngOnDestroy() {
     if (this.projectionDebounceHandle !== null) {
       clearTimeout(this.projectionDebounceHandle);
+    }
+  }
+
+  private async loadFunds(): Promise<void> {
+    this.fundsLoading = true;
+    this.fundsError = '';
+    try {
+      const response = await firstValueFrom(
+        this.http.get<Array<{ ticker: string; name: string; category?: string }>>(this.fundsApiUrl),
+      );
+      const mapped = (response ?? [])
+        .filter((fund) => fund?.ticker && fund?.name)
+        .map((fund) => ({
+          ticker: fund.ticker,
+          name: fund.name,
+          category: fund.category,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      this.funds = mapped.length > 0 ? mapped : [...this.fallbackFunds];
+    } catch (error) {
+      console.error('Failed to load funds', error);
+      this.fundsError = 'Unable to load mutual funds list. Showing defaults.';
+      this.funds = [...this.fallbackFunds];
+    } finally {
+      this.fundsLoading = false;
     }
   }
 

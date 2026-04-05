@@ -42,7 +42,7 @@ class FutureValueServiceTest {
                 FutureValueService.computeFutureValue("vfiax", 1000.0, 5.0);
 
         double expectedReturn = (110.0 - 100.0) / 100.0;
-        double capmRate = 0.04 + 1.2 * (expectedReturn - 0.04);
+        double capmRate = Math.max(0.04, 0.04 + 1.2 * (expectedReturn - 0.04));
         double expectedFutureValue = 1000.0 * Math.exp(capmRate * 5.0);
 
         assertEquals(1.2, result.beta(), 0.0001);
@@ -51,6 +51,12 @@ class FutureValueServiceTest {
 
         betaServer.verify();
         newtonServer.verify();
+    }
+
+    @Test
+    void computeCapmRate_clampsToRiskFreeRate() {
+        double capmRate = FutureValueService.computeCapmRate(-0.5, -0.2);
+        assertEquals(0.04, capmRate, 0.0001);
     }
 
     private RestTemplate getBetaRestTemplate() throws Exception {

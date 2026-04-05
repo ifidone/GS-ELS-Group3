@@ -250,6 +250,54 @@ export class CalculatorComponent implements OnInit, OnDestroy {
     this.scheduleLiveProjection();
   }
 
+  /** Disables the main button when inputs are incomplete or a request is in flight. */
+  primaryActionDisabled(): boolean {
+    if (this.calculatorMode === 'single') {
+      if (this.projectionLoading) {
+        return true;
+      }
+      return !this.singleModeInputsComplete();
+    }
+    if (this.compareLoading) {
+      return true;
+    }
+    return !this.compareModeReadyToSave();
+  }
+
+  private singleModeInputsComplete(): boolean {
+    const ticker = this.selectedTicker?.trim() ?? '';
+    if (!ticker) {
+      return false;
+    }
+    const inv = parseInvestmentAmountInput(this.initialAmountInput);
+    if (inv == null || !Number.isFinite(inv) || inv <= 0) {
+      return false;
+    }
+    return (
+      this.durationMonths >= this.durationMinMonths &&
+      this.durationMonths <= this.durationMaxMonths
+    );
+  }
+
+  private compareModeReadyToSave(): boolean {
+    const a = this.compareTickerA?.trim() ?? '';
+    const b = this.compareTickerB?.trim() ?? '';
+    if (!a || !b) {
+      return false;
+    }
+    const inv = parseInvestmentAmountInput(this.initialAmountInput);
+    if (inv == null || !Number.isFinite(inv) || inv <= 0) {
+      return false;
+    }
+    if (
+      this.durationMonths < this.durationMinMonths ||
+      this.durationMonths > this.durationMaxMonths
+    ) {
+      return false;
+    }
+    return !!(this.compareLeft && this.compareRight);
+  }
+
   /** Button: single = run + save; compare = save both sides (if loaded). */
   runPrimaryAction(): void {
     if (this.projectionDebounceHandle !== null) {

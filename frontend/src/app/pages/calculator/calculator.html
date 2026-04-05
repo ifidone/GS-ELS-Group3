@@ -1,15 +1,14 @@
 <section class="calculator-page">
   <div class="left-rail">
     <div class="hero-copy">
-      <div class="hero-copy-eyebrow">Protected tool</div>
+      <div class="hero-copy-eyebrow">Portfolio calculator</div>
       <h1 class="hero-title">
-        Model your
-        <span class="hero-highlight">mutual fund outcomes</span>
-        with desk-grade clarity.
+        See how a fund might
+        <span class="hero-highlight">grow over time</span>, before you commit.
       </h1>
       <p class="hero-subtitle">
-        This calculator page is protected by the dashboard guard, so authentication and session
-        handling stay outside the feature component.
+        Pick a fund, set an amount and timeline, and watch the projection update as you go. Save
+        snapshots to your history when you’re signed in.
       </p>
     </div>
 
@@ -121,47 +120,57 @@
       </ng-container>
 
       <ng-template #projectionChartEmpty>
-        <div class="projection-empty">
-          Select a fund and amount to preview the projection curve here. Once a result loads, the
-          chart will show the chosen duration in a solid line and the post-horizon growth as a dashed
-          continuation.
+        <div class="projection-empty" role="status">
+          <strong class="projection-empty-title">Chart preview</strong>
+          <p class="projection-empty-text">
+            Choose a fund and investment amount to plot growth here. Solid line = your selected
+            timeline; dashed line = projected continuation beyond it.
+          </p>
         </div>
       </ng-template>
     </aside>
   </div>
 
-  <section class="glass-card">
+  <section class="glass-card" aria-labelledby="calc-main-heading">
     <div class="glass-inner">
-      <div class="card-header">
-        <div class="card-title">Mutual Fund Calculator</div>
-        <div class="card-badge">Beta model · backend powered</div>
-      </div>
+      <header class="card-header">
+        <div class="card-header-text">
+          <h2 id="calc-main-heading" class="card-title">Mutual fund calculator</h2>
+          <p class="card-subtitle">Projections use market data and models, not personal advice.</p>
+        </div>
+        <div class="card-badge">Estimates</div>
+      </header>
 
       <div class="mode-toggle" role="group" aria-label="Calculator mode">
         <button
           type="button"
           class="mode-btn"
           [class.mode-btn--active]="calculatorMode === 'single'"
+          [attr.aria-pressed]="calculatorMode === 'single'"
           (click)="setCalculatorMode('single')"
         >
-          Single fund
+          One fund
         </button>
         <button
           type="button"
           class="mode-btn"
           [class.mode-btn--active]="calculatorMode === 'compare'"
+          [attr.aria-pressed]="calculatorMode === 'compare'"
           (click)="setCalculatorMode('compare')"
         >
-          Compare two funds
+          Compare two
         </button>
       </div>
 
       <ng-container *ngIf="calculatorMode === 'single'">
-        <div class="form-grid">
+        <div class="calc-section">
+          <h3 class="calc-section-title">Your inputs</h3>
+          <div class="form-grid">
           <div class="field field-select">
-            <label>Select Mutual Fund</label>
+            <label for="fundTicker">Mutual fund</label>
             <div class="select-wrap">
               <select
+                id="fundTicker"
                 [(ngModel)]="selectedTicker"
                 (ngModelChange)="scheduleLiveProjection()"
                 name="fundTicker"
@@ -177,7 +186,7 @@
           </div>
 
           <div class="field">
-            <label for="initial-investment">Initial Investment (USD)</label>
+            <label for="initial-investment">Starting amount (USD)</label>
             <input
               id="initial-investment"
               type="text"
@@ -190,21 +199,21 @@
               name="initialAmount"
               placeholder="25000, 15k, 1.5M …"
             />
-            <p class="field-hint">
-              Plain numbers or shorthand: <strong>k</strong> (thousand), <strong>M</strong> (million),
-              <strong>B</strong> (billion). Commas and $ are OK.
-            </p>
           </div>
+        </div>
         </div>
       </ng-container>
 
       <ng-container *ngIf="calculatorMode === 'compare'">
-        <p class="compare-intro">
-          Same initial investment and time horizon for both funds. Results update as you adjust inputs.
-        </p>
+        <div class="calc-section">
+          <h3 class="calc-section-title">Compare side by side</h3>
+          <p class="compare-intro">
+            Both funds use the same starting amount and length of time. Change any field to refresh
+            the numbers.
+          </p>
         <div class="compare-funds-row">
           <div class="field field-select">
-            <label for="compare-fund-a">Fund A</label>
+            <label for="compare-fund-a">First fund</label>
             <div class="select-wrap">
               <select
                 id="compare-fund-a"
@@ -222,7 +231,7 @@
           </div>
           <div class="compare-vs" aria-hidden="true">vs</div>
           <div class="field field-select">
-            <label for="compare-fund-b">Fund B</label>
+            <label for="compare-fund-b">Second fund</label>
             <div class="select-wrap">
               <select
                 id="compare-fund-b"
@@ -237,12 +246,12 @@
                 </option>
               </select>
             </div>
-            <p class="field-hint" *ngIf="fundsError">{{ fundsError }}</p>
           </div>
         </div>
+        <p class="field-hint compare-funds-error" *ngIf="fundsError" role="status">{{ fundsError }}</p>
 
         <div class="field">
-          <label for="initial-investment-compare">Initial Investment (USD)</label>
+          <label for="initial-investment-compare">Starting amount (USD)</label>
           <input
             id="initial-investment-compare"
             type="text"
@@ -255,16 +264,16 @@
             name="initialAmountCompare"
             placeholder="25000, 15k, 1.5M …"
           />
-          <p class="field-hint">
-            Plain numbers or shorthand: <strong>k</strong>, <strong>M</strong>, <strong>B</strong>.
-            Commas and $ are OK.
-          </p>
+        </div>
         </div>
       </ng-container>
 
+      <div class="calc-section calc-section--horizon">
+        <h3 class="calc-section-title">How long you’ll invest</h3>
+        <p class="calc-section-hint">Adjust the slider or type years and months (1 month up to 60 years).</p>
       <div class="field field-duration">
         <div class="duration-label-row">
-          <label for="duration-slider">Investment duration</label>
+          <label for="duration-slider">Timeline</label>
           <span class="duration-value">
             <span class="duration-number">{{ horizonLabelFromMonths(durationMonths) }}</span>
           </span>
@@ -316,61 +325,77 @@
           <span>60 yr</span>
         </div>
       </div>
+      </div>
 
-      <div class="actions">
-        <button class="btn-calc" type="button" (click)="runPrimaryAction()">
-          <ng-container *ngIf="calculatorMode === 'single'">Run projection &amp; save</ng-container>
-          <ng-container *ngIf="calculatorMode === 'compare'">Save both to history</ng-container>
+      <div class="calc-section calc-section--actions">
+        <button
+          class="btn-calc"
+          type="button"
+          (click)="runPrimaryAction()"
+          [disabled]="primaryActionDisabled()"
+          [attr.aria-busy]="
+            (calculatorMode === 'single' && projectionLoading) ||
+            (calculatorMode === 'compare' && compareLoading)
+              ? 'true'
+              : null
+          "
+        >
+          <ng-container *ngIf="calculatorMode === 'single'">
+            <span *ngIf="!projectionLoading">Save projection to history</span>
+            <span *ngIf="projectionLoading">Saving…</span>
+          </ng-container>
+          <ng-container *ngIf="calculatorMode === 'compare'">
+            <span *ngIf="!compareLoading">Save both to history</span>
+            <span *ngIf="compareLoading">Saving…</span>
+          </ng-container>
         </button>
-        <p class="actions-hint" *ngIf="calculatorMode === 'single'">
-          Type years and months directly or drag from <strong>1 month</strong> up to
-          <strong>60 years</strong>. Use the button to store a snapshot in your saved calculations.
+        <p class="actions-hint actions-hint--single" *ngIf="calculatorMode === 'single'">
+          Sign in to keep saved runs in <strong>Saved calculations</strong> below.
         </p>
         <p class="actions-hint" *ngIf="calculatorMode === 'compare'">
-          Saves <strong>both</strong> projections when you’re signed in (same rules as single mode).
-          You can also save one side from the cards below.
+          Saves <strong>both</strong> funds when you’re signed in. You can also save one fund from the
+          cards below.
         </p>
       </div>
 
       <div *ngIf="projectionError" class="projection-error">{{ projectionError }}</div>
 
-      <div *ngIf="calculatorMode === 'single' && result" class="results">
-        <h2>Projection summary</h2>
+      <div *ngIf="calculatorMode === 'single' && result" class="results calc-section">
+        <h2 class="results-heading">Your projection</h2>
 
-        <div>
-          <div class="results-label">Fund</div>
-          <div class="results-value">{{ result.ticker }}</div>
-        </div>
-
-        <div>
-          <div class="results-label">Horizon</div>
-          <div class="results-value">{{ horizonLabelFromYears(result.years) }}</div>
-        </div>
-
-        <div>
-          <div class="results-label">Beta</div>
-          <div class="results-value">{{ result.beta }}</div>
-        </div>
-
-        <div>
-          <div class="results-label">Expected return</div>
-          <div class="results-value">{{ result.expectedReturn * 100 }}%</div>
-        </div>
-
-        <div class="results-future-wrap">
-          <div class="results-label">Projected future value</div>
-          <div class="results-value results-future" [class.results-future--loading]="projectionLoading">
+        <div class="results-hero" [class.results-hero--loading]="projectionLoading">
+          <div class="results-hero-label">Estimated value at end of timeline</div>
+          <div class="results-hero-value">
             ${{ result.futureValue | number: '1.2-2' }}
             <span *ngIf="projectionLoading" class="results-updating" aria-live="polite">Updating…</span>
           </div>
         </div>
+
+        <div class="results-grid">
+          <div class="results-row">
+            <div class="results-label">Fund</div>
+            <div class="results-value">{{ result.ticker }}</div>
+          </div>
+          <div class="results-row">
+            <div class="results-label">Timeline</div>
+            <div class="results-value">{{ horizonLabelFromYears(result.years) }}</div>
+          </div>
+          <div class="results-row">
+            <div class="results-label">Beta</div>
+            <div class="results-value">{{ result.beta }}</div>
+          </div>
+          <div class="results-row">
+            <div class="results-label">Expected return (model)</div>
+            <div class="results-value">{{ result.expectedReturn * 100 }}%</div>
+          </div>
+        </div>
       </div>
 
-      <div *ngIf="calculatorMode === 'compare' && (compareLeft || compareRight)" class="compare-results">
-        <h2 class="compare-results-title">Comparison</h2>
+      <div *ngIf="calculatorMode === 'compare' && (compareLeft || compareRight)" class="compare-results calc-section">
+        <h2 class="compare-results-title">Comparison results</h2>
         <p class="compare-horizon shared-horizon" *ngIf="compareLeft || compareRight">
-          Horizon: <strong>{{ horizonLabelFromMonths(durationMonths) }}</strong> · Same initial
-          investment for both
+          Timeline: <strong>{{ horizonLabelFromMonths(durationMonths) }}</strong> · Same starting
+          amount for both
         </p>
         <div class="compare-columns">
           <article
@@ -382,7 +407,7 @@
             <div class="compare-card-badge compare-card-badge--muted" *ngIf="compareWinner() === 'tie'">
               Tie
             </div>
-            <h3 class="compare-card-title">Fund A</h3>
+            <h3 class="compare-card-title">First fund</h3>
             <ng-container *ngIf="compareLeft as L">
               <div class="compare-metric">
                 <span class="compare-metric-label">Ticker</span>
@@ -401,7 +426,7 @@
                 <span class="compare-future-value">${{ L.futureValue | number: '1.2-2' }}</span>
               </div>
               <button type="button" class="btn-save-side" (click)="saveCompareSide('a')">
-                Save fund A
+                Save first fund
               </button>
             </ng-container>
             <p *ngIf="!compareLeft && !compareLoading" class="compare-placeholder">Could not load projection.</p>
@@ -417,7 +442,7 @@
             <div class="compare-card-badge compare-card-badge--muted" *ngIf="compareWinner() === 'tie'">
               Tie
             </div>
-            <h3 class="compare-card-title">Fund B</h3>
+            <h3 class="compare-card-title">Second fund</h3>
             <ng-container *ngIf="compareRight as R">
               <div class="compare-metric">
                 <span class="compare-metric-label">Ticker</span>
@@ -436,7 +461,7 @@
                 <span class="compare-future-value">${{ R.futureValue | number: '1.2-2' }}</span>
               </div>
               <button type="button" class="btn-save-side" (click)="saveCompareSide('b')">
-                Save fund B
+                Save second fund
               </button>
             </ng-container>
             <p *ngIf="!compareRight && !compareLoading" class="compare-placeholder">Could not load projection.</p>
@@ -445,8 +470,8 @@
         </div>
       </div>
 
-      <div class="history-results" *ngIf="history.length || historyError">
-        <h2>Saved calculations</h2>
+      <div class="history-results calc-section" *ngIf="history.length || historyError">
+        <h2 class="history-heading">Saved calculations</h2>
 
         <div *ngIf="historyError" class="history-status history-error">{{ historyError }}</div>
 
@@ -468,8 +493,9 @@
                 type="button"
                 class="history-delete"
                 (click)="deleteCalculation(item.id)"
+                aria-label="Remove saved calculation {{ item.ticker }}"
               >
-                🗑
+                Remove
               </button>
             </div>
           </article>

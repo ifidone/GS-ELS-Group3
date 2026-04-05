@@ -16,6 +16,6 @@ export class DashboardShellComponent {
 
   async logout() {
     await this.authFacade.logout();
-    await this.router.navigateByUrl('/auth');
+    await this.router.navigateByUrl('/');
   }
 }

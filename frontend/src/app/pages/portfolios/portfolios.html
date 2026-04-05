@@ -1,0 +1,205 @@
+<section class="portfolios-page">
+  <header class="page-head">
+    <p class="page-eyebrow">Dashboard</p>
+    <h1>Portfolios</h1>
+    <p class="page-lead">
+      Group saved calculator runs into named portfolios. Add or remove calculations from a group
+      without deleting the underlying saves (manage those on the calculator page).
+    </p>
+  </header>
+
+  @if (!authFacade.currentUser()) {
+    <p class="banner-muted">Sign in to manage portfolios.</p>
+  } @else {
+    <div class="portfolios-layout">
+      <div class="panel panel-list">
+        <h2 class="panel-title">Your portfolios</h2>
+
+        <div class="create-box">
+          <h3 class="create-title">New portfolio</h3>
+          <label class="sr-only" for="pf-create-name">Name</label>
+          <input
+            id="pf-create-name"
+            type="text"
+            [(ngModel)]="createName"
+            placeholder="Name (e.g. Retirement)"
+            name="createPfName"
+          />
+          <label class="sr-only" for="pf-create-desc">Description</label>
+          <textarea
+            id="pf-create-desc"
+            rows="2"
+            [(ngModel)]="createDescription"
+            placeholder="Optional description"
+            name="createPfDesc"
+          ></textarea>
+          <button
+            type="button"
+            class="btn-primary"
+            [disabled]="creating || !createName.trim()"
+            (click)="createPortfolio()"
+          >
+            {{ creating ? 'Creating…' : 'Create' }}
+          </button>
+        </div>
+
+        @if (listError) {
+          <p class="msg-error" role="alert">{{ listError }}</p>
+        }
+        @if (listLoading) {
+          <p class="msg-muted">Loading…</p>
+        } @else if (!portfolios.length) {
+          <p class="msg-muted">No portfolios yet. Create one above.</p>
+        } @else {
+          <ul class="portfolio-list">
+            @for (row of portfolios; track row.metadata.id) {
+              <li>
+                <button
+                  type="button"
+                  class="portfolio-row"
+                  [class.portfolio-row--active]="selectedName === row.metadata.name"
+                  (click)="selectPortfolio(row.metadata.name)"
+                >
+                  <span class="portfolio-row-name">{{ row.metadata.name }}</span>
+                  @if (row.metadata.description) {
+                    <span class="portfolio-row-desc">{{ row.metadata.description }}</span>
+                  }
+                  <span class="portfolio-row-meta">
+                    {{ row.summary.calculationCount }} saved run(s) ·
+                    {{ row.summary.totalFutureValue | number: '1.0-0' }} projected
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="btn-icon-delete"
+                  (click)="deletePortfolio(row.metadata.name); $event.stopPropagation()"
+                  aria-label="Delete portfolio {{ row.metadata.name }}"
+                >
+                  Remove
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="panel panel-detail">
+        @if (!selectedName) {
+          <div class="detail-empty">
+            <p>Select a portfolio to view details, or create a new one.</p>
+          </div>
+        } @else if (detailLoading) {
+          <p class="msg-muted">Loading portfolio…</p>
+        } @else if (detailError) {
+          <p class="msg-error" role="alert">{{ detailError }}</p>
+        } @else if (detail) {
+          <div class="detail-header">
+            <h2 class="detail-title">{{ detail.metadata.name }}</h2>
+            <button type="button" class="btn-ghost" (click)="clearSelection()">Close</button>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-label">Calculations</span>
+              <span class="stat-value">{{ detail.summary.calculationCount }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Total invested</span>
+              <span class="stat-value">${{ detail.summary.totalPrincipal | number: '1.0-0' }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Combined projected value</span>
+              <span class="stat-value">${{ detail.summary.totalFutureValue | number: '1.0-0' }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Avg beta (weighted)</span>
+              <span class="stat-value">{{ detail.summary.avgBeta | number: '1.2-2' }}</span>
+            </div>
+          </div>
+
+          <div class="edit-block">
+            @if (!editingMeta) {
+              <button type="button" class="btn-secondary" (click)="editingMeta = true">Edit name &amp; description</button>
+            } @else {
+              <label for="pf-edit-name">Name</label>
+              <input id="pf-edit-name" type="text" [(ngModel)]="editName" name="editPfName" />
+              <label for="pf-edit-desc">Description</label>
+              <textarea id="pf-edit-desc" rows="2" [(ngModel)]="editDescription" name="editPfDesc"></textarea>
+              <div class="edit-actions">
+                <button
+                  type="button"
+                  class="btn-primary"
+                  [disabled]="savingMeta"
+                  (click)="saveMeta()"
+                >
+                  {{ savingMeta ? 'Saving…' : 'Save' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-ghost"
+                  [disabled]="savingMeta"
+                  (click)="editingMeta = false; editName = detail.metadata.name; editDescription = detail.metadata.description ?? ''"
+                >
+                  Cancel
+                </button>
+              </div>
+            }
+          </div>
+
+          <h3 class="subsection-title">Calculations in this portfolio</h3>
+          @if (!detail.linkedCalculations.length) {
+            <p class="msg-muted">No calculations linked yet. Add from your saved runs below.</p>
+          } @else {
+            <ul class="calc-list">
+              @for (c of detail.linkedCalculations; track c.calculationId) {
+                <li class="calc-row">
+                  <div>
+                    <strong>{{ c.ticker }}</strong>
+                    <span class="calc-meta">
+                      ${{ c.principal | number: '1.0-0' }} · {{ c.years }} yr · projected
+                      ${{ c.futureValue | number: '1.0-0' }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-text-danger"
+                    (click)="removeCalculation(c.calculationId)"
+                  >
+                    Remove from portfolio
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+
+          <h3 class="subsection-title">Add a saved calculation</h3>
+          @if (availableLoading) {
+            <p class="msg-muted">Loading available runs…</p>
+          } @else if (!available.length) {
+            <p class="msg-muted">All saved calculations are already in this portfolio, or you have none saved.</p>
+          } @else {
+            <div class="add-row">
+              <label class="sr-only" for="pf-add-calc">Saved calculation</label>
+              <select id="pf-add-calc" [(ngModel)]="addCalcId" name="addCalcId">
+                <option [ngValue]="null">Choose a saved run…</option>
+                @for (a of available; track a.calculationId) {
+                  <option [ngValue]="a.calculationId">
+                    {{ a.ticker }} · ${{ a.principal | number: '1.0-0' }} · {{ a.years }} yr
+                  </option>
+                }
+              </select>
+              <button
+                type="button"
+                class="btn-primary"
+                [disabled]="addCalcId == null || addingCalc"
+                (click)="addSelectedCalculation()"
+              >
+                {{ addingCalc ? 'Adding…' : 'Add' }}
+              </button>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
+</section>

@@ -1,12 +1,14 @@
 <section class="dashboard-home">
   <div class="hero-card">
-    <div class="hero-eyebrow">Dashboard</div>
-    <h1>Authenticated shell for every protected page.</h1>
+    <div class="hero-eyebrow">Welcome</div>
+    <h1>You’re in. Pick a tool to get started.</h1>
     <p>
-      This route is available only after Firebase authentication succeeds. The shared dashboard
-      layout can now host calculator, portfolio, and other protected pages without re-authenticating
-      the user.
+      Run projections and compare funds on the calculator, save what you like, then organize those
+      saves into portfolios when you’re ready.
     </p>
-    <a routerLink="/dashboard/calculator" class="hero-link">Open calculator</a>
+    <div class="hero-actions">
+      <a routerLink="/dashboard/calculator" class="hero-link">Calculator</a>
+      <a routerLink="/dashboard/portfolios" class="hero-link hero-link--secondary">Portfolios</a>
+    </div>
   </div>
 </section>

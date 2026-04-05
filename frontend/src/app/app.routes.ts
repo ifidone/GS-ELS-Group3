@@ -3,6 +3,7 @@ import { authGuard, publicOnlyGuard } from './core/auth.guards';
 import { AuthPageComponent } from './pages/auth-page/auth-page';
 import { CalculatorComponent } from './pages/calculator/calculator';
 import { DashboardHomeComponent } from './pages/dashboard-home/dashboard-home';
+import { PortfoliosComponent } from './pages/portfolios/portfolios';
 import { DashboardShellComponent } from './pages/dashboard-shell/dashboard-shell';
 import { LandingPageComponent } from './pages/landing/landing';
 
@@ -29,6 +30,10 @@ export const routes: Routes = [
       {
         path: 'calculator',
         component: CalculatorComponent,
+      },
+      {
+        path: 'portfolios',
+        component: PortfoliosComponent,
       },
     ],
   },

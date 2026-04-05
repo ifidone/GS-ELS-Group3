@@ -166,12 +166,14 @@
                 (ngModelChange)="scheduleLiveProjection()"
                 name="fundTicker"
               >
-                <option value="">Select fund</option>
+                <option value="" *ngIf="fundsLoading">Loading funds...</option>
+                <option value="" *ngIf="!fundsLoading">Select fund</option>
                 <option *ngFor="let fund of funds" [value]="fund.ticker">
                   {{ fund.name }} ({{ fund.ticker }})
                 </option>
               </select>
             </div>
+            <p class="field-hint" *ngIf="fundsError">{{ fundsError }}</p>
           </div>
 
           <div class="field">
@@ -210,7 +212,8 @@
                 (ngModelChange)="scheduleLiveProjection()"
                 name="compareTickerA"
               >
-                <option value="">Select fund</option>
+                <option value="" *ngIf="fundsLoading">Loading funds...</option>
+                <option value="" *ngIf="!fundsLoading">Select fund</option>
                 <option *ngFor="let fund of funds" [value]="fund.ticker">
                   {{ fund.name }} ({{ fund.ticker }})
                 </option>
@@ -227,12 +230,14 @@
                 (ngModelChange)="scheduleLiveProjection()"
                 name="compareTickerB"
               >
-                <option value="">Select fund</option>
+                <option value="" *ngIf="fundsLoading">Loading funds...</option>
+                <option value="" *ngIf="!fundsLoading">Select fund</option>
                 <option *ngFor="let fund of funds" [value]="fund.ticker">
                   {{ fund.name }} ({{ fund.ticker }})
                 </option>
               </select>
             </div>
+            <p class="field-hint" *ngIf="fundsError">{{ fundsError }}</p>
           </div>
         </div>
 

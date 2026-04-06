@@ -1,4 +1,4 @@
-import { Component, OnDestroy, effect, inject } from '@angular/core';
+import { ApplicationRef, Component, NgZone, OnDestroy, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { environment } from '../../../environment';
 import { AuthFacade } from '../../core/auth.facade';
+import { AppNavbarComponent } from '../../core/navbar/app-navbar';
 
 type PortfolioMetadata = {
   id: number;
@@ -85,16 +86,39 @@ type AiPortfolioGenerateResponse = {
   explanation: string;
 };
 
+type CalculatorProjectionResponse = {
+  ticker: string;
+  initialInvestment: number;
+  years: number;
+  beta: number;
+  expectedReturn: number;
+  futureValue: number;
+  timeSeries: Record<string, number>;
+};
+
+type SavedCalculation = {
+  id: number;
+  name: string | null;
+  ticker: string;
+  initialInvestment: number;
+  years: number;
+  beta: number;
+  expectedReturn: number;
+  futureValue: number;
+};
+
 @Component({
   selector: 'app-portfolios',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, AppNavbarComponent],
   templateUrl: './portfolios.html',
   styleUrl: './portfolios.css',
 })
 export class PortfoliosComponent implements OnDestroy {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly appRef = inject(ApplicationRef);
+  private readonly ngZone = inject(NgZone);
   readonly authFacade = inject(AuthFacade);
   private readonly base = environment.apiBaseUrl;
 
@@ -132,6 +156,11 @@ export class PortfoliosComponent implements OnDestroy {
   aiGenerating = false;
   aiError = '';
   aiResult: AiPortfolioGenerateResponse | null = null;
+  aiElapsedSeconds = 0;
+  private aiTimerId: number | null = null;
+  aiSaveName = '';
+  aiSaving = false;
+  aiSaveError = '';
 
   /** Bumps on each row click so stale detail/available HTTP responses cannot flip loading flags. */
   private portfolioPanelRequestId = 0;
@@ -160,7 +189,16 @@ export class PortfoliosComponent implements OnDestroy {
   });
 
   ngOnDestroy(): void {
+    this.stopAiTimer();
     this.effectRef.destroy();
+  }
+
+  private flushUi(): void {
+    if (NgZone.isInAngularZone()) {
+      this.appRef.tick();
+      return;
+    }
+    this.ngZone.run(() => this.appRef.tick());
   }
 
   private portfoliosUrl(extra = ''): string {
@@ -240,6 +278,7 @@ export class PortfoliosComponent implements OnDestroy {
       this.portfolios = [];
     } finally {
       this.listLoading = false;
+      this.flushUi();
     }
   }
 
@@ -291,6 +330,11 @@ export class PortfoliosComponent implements OnDestroy {
     const uid = await this.uid();
     const headers = await this.bearerHeaders();
     if (!uid || !headers) {
+      if (reqId === this.portfolioPanelRequestId) {
+        this.detailLoading = false;
+        this.detailRefreshing = false;
+        this.flushUi();
+      }
       return;
     }
     const hadProvisional =
@@ -332,6 +376,7 @@ export class PortfoliosComponent implements OnDestroy {
       if (reqId === this.portfolioPanelRequestId) {
         this.detailLoading = false;
         this.detailRefreshing = false;
+        this.flushUi();
       }
     }
   }
@@ -340,6 +385,10 @@ export class PortfoliosComponent implements OnDestroy {
     const uid = await this.uid();
     const headers = await this.bearerHeaders();
     if (!uid || !headers) {
+      if (reqId === this.portfolioPanelRequestId) {
+        this.availableLoading = false;
+        this.flushUi();
+      }
       return;
     }
     this.availableLoading = true;
@@ -364,6 +413,7 @@ export class PortfoliosComponent implements OnDestroy {
     } finally {
       if (reqId === this.portfolioPanelRequestId) {
         this.availableLoading = false;
+        this.flushUi();
       }
     }
   }
@@ -415,6 +465,7 @@ export class PortfoliosComponent implements OnDestroy {
       this.listError = this.apiErrorMessage(e, 'Could not create portfolio.');
     } finally {
       this.creating = false;
+      this.flushUi();
     }
 
     // Never await detail fetches here: if GET /portfolios/{name} hangs, we must not leave the
@@ -475,6 +526,7 @@ export class PortfoliosComponent implements OnDestroy {
       this.detailError = this.apiErrorMessage(e, 'Could not update portfolio.');
     } finally {
       this.savingMeta = false;
+      this.flushUi();
     }
   }
 
@@ -498,6 +550,8 @@ export class PortfoliosComponent implements OnDestroy {
     } catch (e) {
       console.error('deletePortfolio', e);
       this.listError = this.apiErrorMessage(e, 'Could not delete portfolio.');
+    } finally {
+      this.flushUi();
     }
   }
 
@@ -532,6 +586,7 @@ export class PortfoliosComponent implements OnDestroy {
       this.detailError = this.apiErrorMessage(e, 'Could not add calculation.');
     } finally {
       this.addingCalc = false;
+      this.flushUi();
     }
   }
 
@@ -561,6 +616,8 @@ export class PortfoliosComponent implements OnDestroy {
     } catch (e) {
       console.error('removeCalc', e);
       this.detailError = this.apiErrorMessage(e, 'Could not remove calculation.');
+    } finally {
+      this.flushUi();
     }
   }
 
@@ -574,11 +631,15 @@ export class PortfoliosComponent implements OnDestroy {
 
   closeAiBuilder(): void {
     this.aiModalOpen = false;
+    this.stopAiTimer();
   }
 
   resetAiBuilder(): void {
     this.aiResult = null;
     this.aiError = '';
+    this.aiSaveName = '';
+    this.aiSaveError = '';
+    this.stopAiTimer();
   }
 
   async generateAiPortfolio(): Promise<void> {
@@ -591,6 +652,8 @@ export class PortfoliosComponent implements OnDestroy {
     this.aiGenerating = true;
     this.aiError = '';
     this.aiResult = null;
+    this.aiSaveError = '';
+    this.startAiTimer();
     try {
       this.aiResult = await firstValueFrom(
         this.http
@@ -607,6 +670,129 @@ export class PortfoliosComponent implements OnDestroy {
       this.aiResult = null;
     } finally {
       this.aiGenerating = false;
+      this.stopAiTimer();
+      this.flushUi();
+    }
+  }
+
+  async saveAiPortfolio(): Promise<void> {
+    if (!this.aiResult) {
+      return;
+    }
+    const uid = await this.uid();
+    const headers = await this.authHeaders();
+    if (!uid || !headers) {
+      return;
+    }
+    const name = this.aiSaveName.trim();
+    if (!name) {
+      this.aiSaveError = 'Enter a portfolio name.';
+      return;
+    }
+    if (
+      this.portfolios.some(
+        (p) => p.metadata.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      this.aiSaveError =
+        'You already have a portfolio with that name. Pick a different name.';
+      return;
+    }
+
+    const principal = Number(this.aiAmount);
+    const years = Math.round(Number(this.aiYears));
+    if (!Number.isFinite(principal) || principal <= 0 || !Number.isFinite(years) || years < 1) {
+      this.aiSaveError = 'Enter a positive amount and at least 1 year.';
+      return;
+    }
+
+    this.aiSaving = true;
+    this.aiSaveError = '';
+    try {
+      await firstValueFrom(
+        this.http
+          .post<PortfolioMetadata>(
+            this.portfoliosUrl(),
+            {
+              uid,
+              name,
+              description: this.aiResult.explanation || null,
+            },
+            { headers },
+          )
+          .pipe(timeout(60_000)),
+      );
+
+      for (const allocation of this.aiResult.allocations) {
+        const weight = allocation.weightPercent / 100;
+        const initialInvestment = Math.max(principal * weight, 0);
+        if (initialInvestment <= 0) {
+          continue;
+        }
+        const projection = await firstValueFrom(
+          this.http
+            .post<CalculatorProjectionResponse>(
+              `${this.base}/api/calculator/project`,
+              {
+                ticker: allocation.ticker,
+                initialInvestment,
+                years,
+              },
+            )
+            .pipe(timeout(45_000)),
+        );
+        const saved = await firstValueFrom(
+          this.http
+            .post<SavedCalculation>(
+              `${this.base}/api/calculations`,
+              {
+                uid,
+                ticker: projection.ticker,
+                initialInvestment: projection.initialInvestment,
+                years: projection.years,
+                beta: projection.beta,
+                expectedReturn: projection.expectedReturn,
+                futureValue: projection.futureValue,
+              },
+              { headers },
+            )
+            .pipe(timeout(60_000)),
+        );
+        await firstValueFrom(
+          this.http
+            .put<void>(
+              this.portfoliosUrl(`/${this.encodeName(name)}/items/${saved.id}`),
+              { uid },
+              { headers },
+            )
+            .pipe(timeout(60_000)),
+        );
+      }
+
+      await this.loadPortfolios();
+      this.selectPortfolio(name);
+      this.aiSaveName = '';
+    } catch (e) {
+      console.error('saveAiPortfolio', e);
+      this.aiSaveError = this.apiErrorMessage(e, 'Could not save AI portfolio.');
+    } finally {
+      this.aiSaving = false;
+      this.flushUi();
+    }
+  }
+
+  private startAiTimer(): void {
+    this.stopAiTimer();
+    this.aiElapsedSeconds = 0;
+    this.aiTimerId = window.setInterval(() => {
+      this.aiElapsedSeconds += 1;
+    }, 1000);
+  }
+
+  private stopAiTimer(): void {
+    if (this.aiTimerId !== null) {
+      window.clearInterval(this.aiTimerId);
+      this.aiTimerId = null;
     }
   }
 
@@ -623,7 +809,7 @@ export class PortfoliosComponent implements OnDestroy {
       beta: a.beta,
       expectedReturn: a.expectedReturn,
     }));
-    void this.router.navigate(['/dashboard/calculator'], {
+    void this.router.navigate(['/calculator'], {
       state: {
         portfolioSimulation: {
           principal,

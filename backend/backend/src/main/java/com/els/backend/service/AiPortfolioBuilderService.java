@@ -4,14 +4,19 @@ import com.els.backend.database.funds.MutualFundStore;
 import com.els.backend.dto.aiportfolio.AiPortfolioAllocationItem;
 import com.els.backend.dto.aiportfolio.AiPortfolioGenerateRequest;
 import com.els.backend.dto.aiportfolio.AiPortfolioGenerateResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.modelcontextprotocol.client.McpSyncClient;
+import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,22 +31,107 @@ import java.util.stream.Collectors;
 @Service
 public class AiPortfolioBuilderService {
 
-    private static final double RISK_FREE_RATE = 0.04;
     private static final int MIN_FUNDS = 4;
     private static final int MAX_FUNDS_LOW = 6;
     private static final int MAX_FUNDS_MED = 7;
     private static final int MAX_FUNDS_HIGH = 8;
 
     private final MutualFundStore mutualFundStore;
+    private final List<McpSyncClient> mcpSyncClients;
+    private final ObjectMapper objectMapper;
 
-    public AiPortfolioBuilderService(MutualFundStore mutualFundStore) {
+    public AiPortfolioBuilderService(MutualFundStore mutualFundStore,
+                                     List<McpSyncClient> mcpSyncClients,
+                                     ObjectMapper objectMapper) {
         this.mutualFundStore = mutualFundStore;
+        this.mcpSyncClients = mcpSyncClients;
+        this.objectMapper = objectMapper;
     }
 
     public AiPortfolioGenerateResponse generate(AiPortfolioGenerateRequest request) {
-        if (request.investmentAmount() <= 0 || request.investmentYears() <= 0) {
+        validateRequest(request);
+        AiPortfolioGenerateResponse mcpResponse = generateWithMcp(request);
+        if (mcpResponse != null) {
+            return mcpResponse;
+        }
+        return generateLocal(request);
+    }
+
+    private void validateRequest(AiPortfolioGenerateRequest request) {
+        if (request == null || request.investmentAmount() <= 0 || request.investmentYears() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Amount and years must be positive.");
         }
+    }
+
+    private AiPortfolioGenerateResponse generateWithMcp(AiPortfolioGenerateRequest request) {
+        if (mcpSyncClients == null || mcpSyncClients.isEmpty()) {
+            return null;
+        }
+        try {
+            Map<String, Object> args = new HashMap<>();
+            args.put("investmentAmount", request.investmentAmount());
+            args.put("investmentYears", request.investmentYears());
+            args.put("riskTolerance", request.riskTolerance());
+
+            McpSchema.CallToolRequest toolRequest =
+                    new McpSchema.CallToolRequest("ai_portfolio_generator", args);
+            McpSchema.CallToolResult result = mcpSyncClients.get(0).callTool(toolRequest);
+
+            if (Boolean.TRUE.equals(result.isError())) {
+                String message = extractToolMessage(result);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        message == null ? "AI portfolio tool failed." : message);
+            }
+
+            Object structured = result.structuredContent();
+            if (structured instanceof Map<?, ?> map && isErrorPayload(map)) {
+                String message = map.get("message") == null ? null : map.get("message").toString();
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        message == null ? "AI portfolio tool failed." : message);
+            }
+
+            if (structured != null) {
+                return objectMapper.convertValue(structured, AiPortfolioGenerateResponse.class);
+            }
+
+            String text = extractToolMessage(result);
+            if (text != null && !text.isBlank()) {
+                return objectMapper.readValue(text, AiPortfolioGenerateResponse.class);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "AI portfolio tool returned no structured content.");
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Failed to call AI portfolio tool.");
+        }
+    }
+
+    private boolean isErrorPayload(Map<?, ?> payload) {
+        Object error = payload.get("error");
+        if (error instanceof Boolean bool) {
+            return bool;
+        }
+        if (error instanceof String str) {
+            return "true".equalsIgnoreCase(str);
+        }
+        return false;
+    }
+
+    private String extractToolMessage(McpSchema.CallToolResult result) {
+        if (result == null || result.content() == null) {
+            return null;
+        }
+        for (McpSchema.Content content : result.content()) {
+            if (content instanceof McpSchema.TextContent textContent) {
+                return textContent.text();
+            }
+        }
+        return null;
+    }
+
+    private AiPortfolioGenerateResponse generateLocal(AiPortfolioGenerateRequest request) {
         RiskTier tier = RiskTier.from(request.riskTolerance());
         List<MutualFundStore.MutualFund> all = mutualFundStore.listAll().stream()
                 .filter(f -> f.ticker() != null && !f.ticker().isBlank())

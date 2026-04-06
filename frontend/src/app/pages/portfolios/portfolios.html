@@ -1,3 +1,4 @@
+<app-navbar></app-navbar>
 <section class="portfolios-page">
   <header class="page-head">
     <p class="page-eyebrow">Dashboard</p>
@@ -11,7 +12,9 @@
     </div>
   </header>
 
-  @if (!authFacade.currentUser()) {
+  @if (!authFacade.authReady()) {
+    <p class="banner-muted">Checking your session…</p>
+  } @else if (!authFacade.currentUser()) {
     <p class="banner-muted">Sign in to manage portfolios.</p>
   } @else {
     <div class="portfolios-layout">
@@ -254,6 +257,23 @@
             </button>
             <button type="button" class="btn-secondary" (click)="resetAiBuilder()">Start over</button>
           </div>
+          <div class="ai-save">
+            <label for="ai-save-name">Save as portfolio</label>
+            <input
+              id="ai-save-name"
+              type="text"
+              [(ngModel)]="aiSaveName"
+              name="aiSaveName"
+              placeholder="e.g., AI Low Risk 10Y"
+              [disabled]="aiSaving"
+            />
+            @if (aiSaveError) {
+              <p class="msg-error" role="alert">{{ aiSaveError }}</p>
+            }
+            <button type="button" class="btn-primary" [disabled]="aiSaving" (click)="saveAiPortfolio()">
+              {{ aiSaving ? 'Saving…' : 'Add to portfolios' }}
+            </button>
+          </div>
         </div>
       } @else {
         <div class="ai-form">
@@ -275,6 +295,7 @@
               Loading live beta and return data for each fund in the catalog (runs in parallel). Typically
               under a minute—if it stalls, check that the backend is running and try again.
             </p>
+            <p class="ai-wait-timer" aria-live="polite">Building time: {{ aiElapsedSeconds }}s</p>
           }
           <button type="button" class="btn-primary" [disabled]="aiGenerating" (click)="generateAiPortfolio()">
             {{ aiGenerating ? 'Building…' : 'Generate portfolio' }}

@@ -6,7 +6,6 @@ import { Router } from '@angular/router';
 import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { environment } from '../../../environment';
 import { AuthFacade } from '../../core/auth.facade';
-import { AppNavbarComponent } from '../../core/navbar/app-navbar';
 
 type PortfolioMetadata = {
   id: number;
@@ -110,7 +109,7 @@ type SavedCalculation = {
 @Component({
   selector: 'app-portfolios',
   standalone: true,
-  imports: [CommonModule, FormsModule, AppNavbarComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './portfolios.html',
   styleUrl: './portfolios.css',
 })
@@ -164,6 +163,8 @@ export class PortfoliosComponent implements OnDestroy {
 
   /** Bumps on each row click so stale detail/available HTTP responses cannot flip loading flags. */
   private portfolioPanelRequestId = 0;
+  private flushScheduled = false;
+  private destroyed = false;
 
   /** HttpClient request timeout (ms) for panel GETs — avoids spinners when the API never responds. */
   private readonly panelHttpTimeoutMs = 25_000;
@@ -171,34 +172,50 @@ export class PortfoliosComponent implements OnDestroy {
   private readonly aiGenerateTimeoutMs = 90_000;
 
   private lastUid: string | null = null;
+  private initialLoadDone = false;
   private effectRef = effect(() => {
+    const ready = this.authFacade.authReady();
     const user = this.authFacade.currentUser();
     const uid = user?.uid ?? null;
+    if (!ready) {
+      return;
+    }
     if (uid !== this.lastUid) {
       this.lastUid = uid;
+      this.initialLoadDone = false;
       this.selectedName = null;
       this.detail = null;
       this.available = [];
       if (uid) {
-        void this.loadPortfolios();
       } else {
         this.portfolios = [];
         this.listError = '';
       }
     }
+    if (uid && !this.initialLoadDone) {
+      this.initialLoadDone = true;
+      void this.loadPortfolios();
+    }
   });
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.stopAiTimer();
     this.effectRef.destroy();
   }
 
   private flushUi(): void {
-    if (NgZone.isInAngularZone()) {
-      this.appRef.tick();
+    if (this.flushScheduled || this.destroyed) {
       return;
     }
-    this.ngZone.run(() => this.appRef.tick());
+    this.flushScheduled = true;
+    window.setTimeout(() => {
+      this.flushScheduled = false;
+      if (this.destroyed) {
+        return;
+      }
+      this.ngZone.run(() => this.appRef.tick());
+    }, 0);
   }
 
   private portfoliosUrl(extra = ''): string {
@@ -428,9 +445,10 @@ export class PortfoliosComponent implements OnDestroy {
     if (!name) {
       return;
     }
+    const normalizedName = name.toLowerCase();
     if (
       this.portfolios.some(
-        (p) => p.metadata.name.trim().toLowerCase() === name.toLowerCase(),
+        (p) => p.metadata.name.trim().toLowerCase() === normalizedName,
       )
     ) {
       this.listError =
@@ -462,7 +480,19 @@ export class PortfoliosComponent implements OnDestroy {
       createdOk = !this.listError;
     } catch (e) {
       console.error('createPortfolio', e);
-      this.listError = this.apiErrorMessage(e, 'Could not create portfolio.');
+      const createError = this.apiErrorMessage(e, 'Could not create portfolio.');
+      await this.loadPortfolios();
+      const existsNow = this.portfolios.some(
+        (p) => p.metadata.name.trim().toLowerCase() === normalizedName,
+      );
+      if (existsNow) {
+        this.createName = '';
+        this.createDescription = '';
+        this.listError = '';
+        createdOk = true;
+      } else if (!this.listError) {
+        this.listError = createError;
+      }
     } finally {
       this.creating = false;
       this.flushUi();

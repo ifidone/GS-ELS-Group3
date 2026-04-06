@@ -8,6 +8,7 @@ from app.tools.fund_tools import register as register_funds
 from app.tools.health_tools import register as register_health_tools
 from app.tools.portfolio_tools import register as register_portfolios
 from app.tools.recommendation_tools import register as register_recommendations
+from app.tools.ai_portfolio_tools import register as register_ai_portfolio
 
 mcp = FastMCP("mcp-server")
 
@@ -19,6 +20,7 @@ register_calculations(mcp)
 register_funds(mcp)
 register_portfolios(mcp)
 register_recommendations(mcp)
+register_ai_portfolio(mcp)
 
 
 if __name__ == "__main__":

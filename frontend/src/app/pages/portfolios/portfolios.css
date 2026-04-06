@@ -32,6 +32,214 @@
   color: rgba(255, 255, 255, 0.88);
 }
 
+.page-actions {
+  margin-top: 14px;
+}
+
+.btn-ai {
+  border: 1px solid rgba(191, 219, 254, 0.65);
+  padding: 10px 18px;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  color: #0f172a;
+  background: linear-gradient(135deg, #e0f2fe, #bfdbfe);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+.btn-ai:hover {
+  filter: brightness(1.05);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.modal-panel {
+  position: fixed;
+  z-index: 90;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(88vh, 720px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(15, 23, 42, 0.97), rgba(30, 41, 59, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+  color: #f8fafc;
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.modal-close {
+  flex-shrink: 0;
+}
+
+.modal-lead {
+  margin: 0 0 18px;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ai-form label,
+.ai-risk legend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.ai-form input[type='number'] {
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  padding: 10px 12px;
+  font: inherit;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.ai-risk {
+  border: 0;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+}
+
+.ai-risk legend {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.ai-risk label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.ai-result-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(56, 189, 248, 0.2);
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  color: #e0f2fe;
+  margin-bottom: 12px;
+}
+
+.ai-result-fv {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.ai-result-fv strong {
+  font-size: 1.35rem;
+}
+
+.ai-result-metrics {
+  margin: 0 0 16px;
+  font-size: 0.82rem;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.ai-allocation-list {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-allocation-list li {
+  display: grid;
+  grid-template-columns: 72px 1fr 56px;
+  gap: 8px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-size: 0.88rem;
+}
+
+.ai-allocation-ticker {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.ai-allocation-name {
+  color: rgba(226, 232, 240, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-allocation-pct {
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-why h3 {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.95);
+}
+
+.ai-why p {
+  margin: 0 0 16px;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: rgba(241, 245, 249, 0.92);
+}
+
+.ai-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .banner-muted,
 .msg-muted {
   color: rgba(255, 255, 255, 0.7);
@@ -44,6 +252,13 @@
   background: rgba(127, 29, 29, 0.35);
   border: 1px solid rgba(248, 113, 113, 0.45);
   color: rgba(254, 226, 226, 0.95);
+}
+
+.ai-wait-hint {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.85);
 }
 
 .portfolios-layout {
@@ -231,6 +446,16 @@
   padding: 32px 16px;
   text-align: center;
   color: rgba(255, 255, 255, 0.75);
+}
+
+.detail-refresh-hint {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .detail-header {

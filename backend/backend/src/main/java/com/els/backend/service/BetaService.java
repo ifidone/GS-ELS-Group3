@@ -1,10 +1,18 @@
 package com.els.backend.service;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 @Service
 public class BetaService {
-    private static final RestTemplate restTemplate = new RestTemplate();
+    private static final RestTemplate restTemplate = createRestTemplate();
+
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
+        f.setConnectTimeout(5_000);
+        f.setReadTimeout(12_000);
+        return new RestTemplate(f);
+    }
 
     // Newton stock-beta endpoint + fixed parameters per project spec
     private static final String BASE_URL = "https://api.newtonanalytics.com/stock-beta/";

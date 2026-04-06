@@ -2,7 +2,8 @@ import { Component, OnDestroy, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Router } from '@angular/router';
+import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { environment } from '../../../environment';
 import { AuthFacade } from '../../core/auth.facade';
 
@@ -66,6 +67,24 @@ type PortfolioDetail = {
 
 type ErrorBody = { message?: string };
 
+type AiPortfolioAllocation = {
+  ticker: string;
+  name: string;
+  category: string;
+  weightPercent: number;
+  beta: number;
+  expectedReturn: number;
+};
+
+type AiPortfolioGenerateResponse = {
+  riskLabel: string;
+  allocations: AiPortfolioAllocation[];
+  portfolioWeightedExpectedReturn: number;
+  portfolioBlendedAnnualRate: number;
+  deterministicFutureValue: number;
+  explanation: string;
+};
+
 @Component({
   selector: 'app-portfolios',
   standalone: true,
@@ -75,6 +94,7 @@ type ErrorBody = { message?: string };
 })
 export class PortfoliosComponent implements OnDestroy {
   private readonly http = inject(HttpClient);
+  private readonly router = inject(Router);
   readonly authFacade = inject(AuthFacade);
   private readonly base = environment.apiBaseUrl;
 
@@ -84,7 +104,10 @@ export class PortfoliosComponent implements OnDestroy {
 
   selectedName: string | null = null;
   detail: PortfolioDetail | null = null;
+  /** Full-page spinner only when we have no list row to show yet. */
   detailLoading = false;
+  /** True while replacing provisional detail with the full GET /portfolios/{name} response. */
+  detailRefreshing = false;
   detailError = '';
 
   available: LinkedCalculationResponse[] = [];
@@ -101,6 +124,22 @@ export class PortfoliosComponent implements OnDestroy {
 
   addCalcId: number | null = null;
   addingCalc = false;
+
+  aiModalOpen = false;
+  aiAmount = 25000;
+  aiYears = 10;
+  aiRisk: 'LOW' | 'MEDIUM' | 'HIGH' = 'MEDIUM';
+  aiGenerating = false;
+  aiError = '';
+  aiResult: AiPortfolioGenerateResponse | null = null;
+
+  /** Bumps on each row click so stale detail/available HTTP responses cannot flip loading flags. */
+  private portfolioPanelRequestId = 0;
+
+  /** HttpClient request timeout (ms) for panel GETs — avoids spinners when the API never responds. */
+  private readonly panelHttpTimeoutMs = 25_000;
+  /** AI generate hits Newton for every catalog fund; cap wait so the UI never hangs indefinitely. */
+  private readonly aiGenerateTimeoutMs = 90_000;
 
   private lastUid: string | null = null;
   private effectRef = effect(() => {
@@ -130,6 +169,27 @@ export class PortfoliosComponent implements OnDestroy {
 
   private encodeName(name: string): string {
     return encodeURIComponent(name);
+  }
+
+  /** Shown immediately when picking a row; replaced by GET detail (adds projections + full calc list). */
+  private provisionalDetailFromListRow(row: PortfolioListItem): PortfolioDetail {
+    const linked: LinkedCalculationResponse[] = row.previewItems.map((p) => ({
+      calculationId: p.calculationId,
+      ticker: p.ticker,
+      principal: p.principal,
+      years: p.years,
+      beta: p.beta,
+      expectedReturn: p.expectedReturn,
+      capm: p.capm,
+      futureValue: p.futureValue,
+    }));
+    return {
+      metadata: { ...row.metadata },
+      summary: { ...row.summary },
+      projectionPoints: [],
+      allocationBreakdown: row.allocationBreakdown.map((a) => ({ ...a })),
+      linkedCalculations: linked,
+    };
   }
 
   /** JSON mutations (POST/PATCH/PUT) — includes Content-Type. */
@@ -183,50 +243,100 @@ export class PortfoliosComponent implements OnDestroy {
     }
   }
 
-  async selectPortfolio(name: string): Promise<void> {
+  selectPortfolio(name: string): void {
+    this.portfolioPanelRequestId += 1;
+    const reqId = this.portfolioPanelRequestId;
+
+    // Clear any spinners from a superseded generation (otherwise reqId mismatch skips finally → stuck UI).
+    this.detailLoading = false;
+    this.detailRefreshing = false;
+    this.availableLoading = false;
+
     this.selectedName = name;
-    this.detail = null;
     this.detailError = '';
     this.available = [];
-    this.editName = name;
-    this.editDescription = '';
     this.editingMeta = false;
     this.addCalcId = null;
-    await Promise.all([this.loadDetail(name), this.loadAvailable(name)]);
+
+    const row = this.portfolios.find((p) => p.metadata.name.trim() === name.trim());
+    if (row) {
+      this.detail = this.provisionalDetailFromListRow(row);
+      this.detailLoading = false;
+      this.editName = row.metadata.name;
+      this.editDescription = row.metadata.description ?? '';
+    } else {
+      this.detail = null;
+      this.detailLoading = true;
+      this.editName = name;
+      this.editDescription = '';
+    }
+
+    void this.loadDetail(name, reqId);
+    void this.loadAvailable(name, reqId);
   }
 
   clearSelection(): void {
+    this.portfolioPanelRequestId += 1;
     this.selectedName = null;
     this.detail = null;
     this.available = [];
     this.detailError = '';
     this.editingMeta = false;
+    this.detailLoading = false;
+    this.detailRefreshing = false;
+    this.availableLoading = false;
   }
 
-  private async loadDetail(name: string): Promise<void> {
+  private async loadDetail(name: string, reqId: number): Promise<void> {
     const uid = await this.uid();
     const headers = await this.bearerHeaders();
     if (!uid || !headers) {
       return;
     }
-    this.detailLoading = true;
+    const hadProvisional =
+      this.detail !== null &&
+      this.selectedName === name &&
+      this.detail.metadata.name.trim() === name.trim();
+
+    if (hadProvisional) {
+      this.detailRefreshing = true;
+    } else {
+      this.detailLoading = true;
+    }
     this.detailError = '';
     try {
-      this.detail = await firstValueFrom(
-        this.http.get<PortfolioDetail>(this.portfoliosUrl(`/${this.encodeName(name)}`), { headers }),
-      );
-      this.editName = this.detail.metadata.name;
-      this.editDescription = this.detail.metadata.description ?? '';
-    } catch (e) {
-      console.error('loadDetail', e);
-      this.detailError = this.apiErrorMessage(e, 'Could not load portfolio.');
-      this.detail = null;
+      try {
+        const data = await firstValueFrom(
+          this.http.get<PortfolioDetail>(this.portfoliosUrl(`/${this.encodeName(name)}`), {
+            headers,
+            timeout: this.panelHttpTimeoutMs,
+          }),
+        );
+        if (this.selectedName !== name || reqId !== this.portfolioPanelRequestId) {
+          return;
+        }
+        this.detail = data;
+        this.editName = this.detail.metadata.name;
+        this.editDescription = this.detail.metadata.description ?? '';
+      } catch (e) {
+        console.error('loadDetail', e);
+        if (reqId !== this.portfolioPanelRequestId) {
+          return;
+        }
+        this.detailError = this.apiErrorMessage(e, 'Could not load portfolio.');
+        if (this.selectedName === name && !hadProvisional) {
+          this.detail = null;
+        }
+      }
     } finally {
-      this.detailLoading = false;
+      if (reqId === this.portfolioPanelRequestId) {
+        this.detailLoading = false;
+        this.detailRefreshing = false;
+      }
     }
   }
 
-  private async loadAvailable(name: string): Promise<void> {
+  private async loadAvailable(name: string, reqId: number): Promise<void> {
     const uid = await this.uid();
     const headers = await this.bearerHeaders();
     if (!uid || !headers) {
@@ -234,17 +344,27 @@ export class PortfoliosComponent implements OnDestroy {
     }
     this.availableLoading = true;
     try {
-      this.available = await firstValueFrom(
-        this.http.get<LinkedCalculationResponse[]>(
-          this.portfoliosUrl(`/${this.encodeName(name)}/available-calculations`),
-          { headers },
-        ),
-      );
-    } catch (e) {
-      console.error('loadAvailable', e);
-      this.available = [];
+      try {
+        const data = await firstValueFrom(
+          this.http.get<LinkedCalculationResponse[]>(
+            this.portfoliosUrl(`/${this.encodeName(name)}/available-calculations`),
+            { headers, timeout: this.panelHttpTimeoutMs },
+          ),
+        );
+        if (this.selectedName !== name || reqId !== this.portfolioPanelRequestId) {
+          return;
+        }
+        this.available = data;
+      } catch (e) {
+        console.error('loadAvailable', e);
+        if (this.selectedName === name && reqId === this.portfolioPanelRequestId) {
+          this.available = [];
+        }
+      }
     } finally {
-      this.availableLoading = false;
+      if (reqId === this.portfolioPanelRequestId) {
+        this.availableLoading = false;
+      }
     }
   }
 
@@ -258,27 +378,49 @@ export class PortfoliosComponent implements OnDestroy {
     if (!name) {
       return;
     }
+    if (
+      this.portfolios.some(
+        (p) => p.metadata.name.trim().toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      this.listError =
+        'You already have a portfolio with that name. Select it in the list below, or pick a different name.';
+      return;
+    }
+
+    const createdName = name;
     this.creating = true;
+    this.listError = '';
+    let createdOk = false;
     try {
       await firstValueFrom(
-        this.http.post<PortfolioMetadata>(
-          this.portfoliosUrl(),
-          {
-            uid,
-            name,
-            description: this.createDescription.trim() || null,
-          },
-          { headers },
-        ),
+        this.http
+          .post<PortfolioMetadata>(
+            this.portfoliosUrl(),
+            {
+              uid,
+              name,
+              description: this.createDescription.trim() || null,
+            },
+            { headers },
+          )
+          .pipe(timeout(60_000)),
       );
       this.createName = '';
       this.createDescription = '';
       await this.loadPortfolios();
+      createdOk = !this.listError;
     } catch (e) {
       console.error('createPortfolio', e);
       this.listError = this.apiErrorMessage(e, 'Could not create portfolio.');
     } finally {
       this.creating = false;
+    }
+
+    // Never await detail fetches here: if GET /portfolios/{name} hangs, we must not leave the
+    // Create button stuck in "Creating…" (finally already cleared `creating`).
+    if (createdOk) {
+      this.selectPortfolio(createdName);
     }
   }
 
@@ -323,10 +465,10 @@ export class PortfoliosComponent implements OnDestroy {
       this.editingMeta = false;
       await this.loadPortfolios();
       if (newName !== this.selectedName) {
-        await this.selectPortfolio(newName);
+        this.selectPortfolio(newName);
       } else {
-        await this.loadDetail(newName);
-        await this.loadAvailable(newName);
+        void this.loadDetail(newName, this.portfolioPanelRequestId);
+        void this.loadAvailable(newName, this.portfolioPanelRequestId);
       }
     } catch (e) {
       console.error('saveMeta', e);
@@ -378,7 +520,13 @@ export class PortfoliosComponent implements OnDestroy {
         ),
       );
       this.addCalcId = null;
-      await Promise.all([this.loadDetail(this.selectedName), this.loadAvailable(this.selectedName), this.loadPortfolios()]);
+      const sid = this.selectedName;
+      const rid = this.portfolioPanelRequestId;
+      await Promise.all([
+        this.loadDetail(sid, rid),
+        this.loadAvailable(sid, rid),
+        this.loadPortfolios(),
+      ]);
     } catch (e) {
       console.error('addCalc', e);
       this.detailError = this.apiErrorMessage(e, 'Could not add calculation.');
@@ -403,14 +551,106 @@ export class PortfoliosComponent implements OnDestroy {
           { headers },
         ),
       );
-      await Promise.all([this.loadDetail(this.selectedName), this.loadAvailable(this.selectedName), this.loadPortfolios()]);
+      const sid = this.selectedName;
+      const rid = this.portfolioPanelRequestId;
+      await Promise.all([
+        this.loadDetail(sid, rid),
+        this.loadAvailable(sid, rid),
+        this.loadPortfolios(),
+      ]);
     } catch (e) {
       console.error('removeCalc', e);
       this.detailError = this.apiErrorMessage(e, 'Could not remove calculation.');
     }
   }
 
+  openAiBuilder(): void {
+    if (!this.authFacade.currentUser()) {
+      return;
+    }
+    this.aiModalOpen = true;
+    this.aiError = '';
+  }
+
+  closeAiBuilder(): void {
+    this.aiModalOpen = false;
+  }
+
+  resetAiBuilder(): void {
+    this.aiResult = null;
+    this.aiError = '';
+  }
+
+  async generateAiPortfolio(): Promise<void> {
+    const amt = Number(this.aiAmount);
+    const yrs = Math.round(Number(this.aiYears));
+    if (!Number.isFinite(amt) || amt <= 0 || !Number.isFinite(yrs) || yrs < 1) {
+      this.aiError = 'Enter a positive amount and at least 1 year.';
+      return;
+    }
+    this.aiGenerating = true;
+    this.aiError = '';
+    this.aiResult = null;
+    try {
+      this.aiResult = await firstValueFrom(
+        this.http
+          .post<AiPortfolioGenerateResponse>(`${this.base}/api/ai-portfolio/generate`, {
+            investmentAmount: amt,
+            investmentYears: yrs,
+            riskTolerance: this.aiRisk,
+          })
+          .pipe(timeout(this.aiGenerateTimeoutMs)),
+      );
+    } catch (e) {
+      console.error('generateAiPortfolio', e);
+      this.aiError = this.apiErrorMessage(e, 'Could not generate portfolio.');
+      this.aiResult = null;
+    } finally {
+      this.aiGenerating = false;
+    }
+  }
+
+  simulateAiPortfolio(): void {
+    if (!this.aiResult) {
+      return;
+    }
+    const principal = Number(this.aiAmount);
+    const years = Math.round(Number(this.aiYears));
+    const holdings = this.aiResult.allocations.map((a) => ({
+      ticker: a.ticker,
+      weight: a.weightPercent / 100,
+      name: a.name,
+      beta: a.beta,
+      expectedReturn: a.expectedReturn,
+    }));
+    void this.router.navigate(['/dashboard/calculator'], {
+      state: {
+        portfolioSimulation: {
+          principal,
+          years,
+          holdings,
+          blendedAnnualRate: this.aiResult.portfolioBlendedAnnualRate,
+          weightedExpectedReturn: this.aiResult.portfolioWeightedExpectedReturn,
+          deterministicFutureValue: this.aiResult.deterministicFutureValue,
+        },
+      },
+    });
+    this.closeAiBuilder();
+  }
+
   private apiErrorMessage(error: unknown, fallback: string): string {
+    if (error instanceof TimeoutError) {
+      return 'This is taking too long (market data for many funds). Check your connection, ensure the backend is running, then try again.';
+    }
+    if (
+      (error instanceof DOMException || error instanceof Error) &&
+      (error as Error).name === 'AbortError'
+    ) {
+      return 'Request timed out. Is the backend running and reachable from this app?';
+    }
+    if (error instanceof HttpErrorResponse && error.status === 0) {
+      return 'Cannot reach the API. Is the backend running (port 8080) and is the dev proxy configured?';
+    }
     if (!(error instanceof HttpErrorResponse)) {
       return fallback;
     }
@@ -421,9 +661,6 @@ export class PortfoliosComponent implements OnDestroy {
     }
     if (msg) {
       return msg;
-    }
-    if (error.status === 0) {
-      return 'Cannot reach the API. Is the backend running?';
     }
     return `${fallback} (HTTP ${error.status}).`;
   }

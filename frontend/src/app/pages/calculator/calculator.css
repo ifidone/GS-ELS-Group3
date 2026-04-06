@@ -106,6 +106,164 @@
   line-height: 1.5;
 }
 
+.projection-view-toggle {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 0;
+}
+
+.view-toggle-btn {
+  border: 0;
+  background: transparent;
+  color: rgba(226, 232, 240, 0.72);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.view-toggle-btn:hover {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.view-toggle-btn--active {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  box-shadow: 0 1px 10px rgba(0, 0, 0, 0.2);
+}
+
+.portfolio-sim-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(226, 232, 240, 0.9);
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.28);
+}
+
+.calc-sim-status {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  font-style: italic;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.sim-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 520px) {
+  .sim-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sim-stat {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sim-stat-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.62);
+  margin-bottom: 4px;
+}
+
+.sim-stat strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+}
+
+.simulation-band {
+  fill: rgba(111, 143, 184, 0.28);
+  stroke: rgba(111, 143, 184, 0.45);
+  stroke-width: 0.75;
+}
+
+.simulation-faint {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.simulation-median {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.simulation-deterministic {
+  fill: none;
+  stroke: rgba(196, 181, 253, 0.95);
+  stroke-width: 1.35;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+}
+
+.sim-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 12px;
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.sim-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.sim-legend-dot--band {
+  background: rgba(111, 143, 184, 0.55);
+  box-shadow: 0 0 0 1px rgba(111, 143, 184, 0.35);
+}
+
+.sim-legend-dot--median {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.sim-legend-dot--det {
+  background: transparent;
+  border: 2px dashed rgba(196, 181, 253, 0.95);
+  height: 7px;
+  width: 14px;
+  border-radius: 1px;
+}
+
+.projection-empty--sim {
+  margin-top: 4px;
+}
+
 .projection-chart {
   display: block;
   width: 100%;

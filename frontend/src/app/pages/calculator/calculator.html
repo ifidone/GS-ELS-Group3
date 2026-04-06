@@ -15,109 +15,218 @@
     <aside class="projection-panel">
       <div class="projection-panel-header">
         <div>
-          <p class="projection-panel-eyebrow">{{ projectionChartModel.title }}</p>
-          <h2 class="projection-panel-title">{{ projectionChartModel.durationLabel }}</h2>
+          <p class="projection-panel-eyebrow">{{ chartPanelEyebrow }}</p>
+          <h2 class="projection-panel-title">{{ horizonLabelFromMonths(durationMonths) }}</h2>
         </div>
         <div class="projection-panel-future">
           <span>Future window</span>
-          <strong>{{ projectionChartModel.endLabel }}</strong>
+          <strong>{{ chartHorizonEndLabel }}</strong>
         </div>
       </div>
 
-      <p class="projection-panel-copy">{{ projectionChartModel.subtitle }}</p>
+      <p class="projection-panel-copy">{{ chartPanelSubtitle }}</p>
 
-      <ng-container *ngIf="!projectionChartModel.empty; else projectionChartEmpty">
-        <div class="projection-chart-wrap">
-          <svg
-            class="projection-chart"
-            [attr.viewBox]="'0 0 ' + projectionChartModel.width + ' ' + projectionChartModel.height"
-            role="img"
-            aria-label="Projection chart"
-            preserveAspectRatio="none"
-          >
-            <ng-container *ngFor="let tick of projectionChartModel.ticks">
-              <line
-                class="projection-grid-line"
-                [attr.x1]="14"
-                [attr.x2]="projectionChartModel.width - 14"
-                [attr.y1]="tick.y"
-                [attr.y2]="tick.y"
-              />
-              <text class="projection-grid-label" x="16" [attr.y]="tick.y - 6">{{ tick.label }}</text>
-            </ng-container>
+      <div class="projection-view-toggle" *ngIf="calculatorMode === 'single'" role="group" aria-label="Projection view">
+        <button
+          type="button"
+          class="view-toggle-btn"
+          [class.view-toggle-btn--active]="projectionViewMode === 'deterministic'"
+          (click)="setProjectionViewMode('deterministic')"
+        >
+          Deterministic
+        </button>
+        <button
+          type="button"
+          class="view-toggle-btn"
+          [class.view-toggle-btn--active]="projectionViewMode === 'simulation'"
+          (click)="setProjectionViewMode('simulation')"
+        >
+          Simulation
+        </button>
+      </div>
 
-            <line
-              class="projection-duration-marker"
-              [attr.x1]="projectionChartModel.durationX"
-              [attr.x2]="projectionChartModel.durationX"
-              y1="16"
-              [attr.y2]="projectionChartModel.height - 34"
-            />
-
-            <ng-container *ngFor="let line of projectionChartModel.series">
-              <path
-                class="projection-line"
-                [attr.d]="line.solidPath"
-                [attr.stroke]="line.color"
-              />
-              <path
-                class="projection-line projection-line--dashed"
-                [attr.d]="line.dashedPath"
-                [attr.stroke]="line.color"
-              />
-            </ng-container>
-
-            <ng-container *ngIf="chartTooltip as tooltip">
-              <circle
-                *ngFor="let entry of tooltip.entries"
-                class="projection-hover-dot"
-                [attr.cx]="tooltip.anchorX"
-                [attr.cy]="entry.pointY"
-                r="4.5"
-                [attr.fill]="entry.color"
-              />
-            </ng-container>
-
-            <ng-container *ngFor="let tick of projectionChartModel.xTicks">
-              <text class="projection-axis-label" [attr.x]="tick.x" [attr.y]="projectionChartModel.height - 8">
-                {{ tick.label }}
-              </text>
-            </ng-container>
-
-            <rect
-              class="projection-hover-capture"
-              x="14"
-              y="16"
-              [attr.width]="projectionChartModel.width - 28"
-              [attr.height]="projectionChartModel.height - 50"
-              (mousemove)="onChartHover($event, projectionChartModel)"
-              (mouseleave)="clearChartHover()"
-            />
-          </svg>
-
-          <div
-            *ngIf="chartTooltip as tooltip"
-            class="projection-tooltip"
-            [style.left.px]="tooltip.popupX"
-            [style.top.px]="tooltip.popupY"
-          >
-            <div class="projection-tooltip-time">{{ tooltip.timeLabel }}</div>
-            <div class="projection-tooltip-row" *ngFor="let entry of tooltip.entries">
-              <span class="projection-tooltip-swatch" [style.--swatch]="entry.color"></span>
-              <span class="projection-tooltip-ticker">{{ entry.ticker }}</span>
-              <span class="projection-tooltip-value">{{ compactCurrency(entry.value) }}</span>
+      <ng-container
+        *ngIf="calculatorMode === 'single' && projectionViewMode === 'simulation'; else deterministicOrCompareChart"
+      >
+        <p class="portfolio-sim-banner" *ngIf="portfolioSimulationHoldings?.length">
+          Simulating your AI-built multi-fund mix. Change the fund dropdown to return to a single-ticker
+          projection.
+        </p>
+        <p class="calc-sim-status" *ngIf="!result && projectionLoading">Loading projection…</p>
+        <p class="calc-sim-status" *ngIf="result && monteCarloLoading && !simulationChartModel">
+          Running simulations…
+        </p>
+        <p class="projection-error" *ngIf="monteCarloError">{{ monteCarloError }}</p>
+        <ng-container *ngIf="simulationChartModel as sim">
+          <div class="sim-stats" *ngIf="monteCarloResult as mc">
+            <div class="sim-stat">
+              <span class="sim-stat-label">Best case (p90)</span>
+              <strong>{{ compactCurrency(mc.bestCase) }}</strong>
+            </div>
+            <div class="sim-stat">
+              <span class="sim-stat-label">Median</span>
+              <strong>{{ compactCurrency(mc.medianCase) }}</strong>
+            </div>
+            <div class="sim-stat">
+              <span class="sim-stat-label">Worst case (p10)</span>
+              <strong>{{ compactCurrency(mc.worstCase) }}</strong>
             </div>
           </div>
-        </div>
-
-        <div class="projection-legend">
-          <div class="projection-legend-item" *ngFor="let line of projectionChartModel.series">
-            <span class="projection-legend-swatch" [style.--swatch]="line.color"></span>
-            <span class="projection-legend-ticker">{{ line.ticker }}</span>
-            <span class="projection-legend-value">{{ compactCurrency(line.durationValue) }}</span>
+          <div class="projection-chart-wrap">
+            <svg
+              class="projection-chart"
+              [attr.viewBox]="'0 0 ' + sim.width + ' ' + sim.height"
+              role="img"
+              aria-label="Monte Carlo simulation chart"
+              preserveAspectRatio="none"
+            >
+              <ng-container *ngFor="let tick of sim.ticks">
+                <line
+                  class="projection-grid-line"
+                  [attr.x1]="14"
+                  [attr.x2]="sim.width - 14"
+                  [attr.y1]="tick.y"
+                  [attr.y2]="tick.y"
+                />
+                <text class="projection-grid-label" x="16" [attr.y]="tick.y - 6">{{ tick.label }}</text>
+              </ng-container>
+              <line
+                class="projection-duration-marker"
+                [attr.x1]="sim.durationX"
+                [attr.x2]="sim.durationX"
+                y1="16"
+                [attr.y2]="sim.height - 34"
+              />
+              <path class="simulation-band" [attr.d]="sim.bandPath" />
+              <path *ngFor="let fp of sim.faintPaths" class="simulation-faint" [attr.d]="fp" />
+              <path class="simulation-median" [attr.d]="sim.medianPath" />
+              <path class="simulation-deterministic" [attr.d]="sim.deterministicPath" />
+              <ng-container *ngFor="let tick of sim.xTicks">
+                <text class="projection-axis-label" [attr.x]="tick.x" [attr.y]="sim.height - 8">
+                  {{ tick.label }}
+                </text>
+              </ng-container>
+            </svg>
           </div>
+          <div class="sim-legend">
+            <span><i class="sim-legend-dot sim-legend-dot--band"></i> 10th–90th percentile</span>
+            <span><i class="sim-legend-dot sim-legend-dot--median"></i> Median path</span>
+            <span><i class="sim-legend-dot sim-legend-dot--det"></i> Deterministic</span>
+          </div>
+        </ng-container>
+        <div
+          *ngIf="!result && !projectionLoading"
+          class="projection-empty projection-empty--sim"
+          role="status"
+        >
+          <strong class="projection-empty-title">Simulation preview</strong>
+          <p class="projection-empty-text">
+            Choose a fund and starting amount. We’ll draw many possible paths around the same model used
+            in the deterministic view.
+          </p>
         </div>
+        <p
+          class="calc-sim-status"
+          *ngIf="result && !simulationChartModel && !monteCarloLoading && !monteCarloError"
+        >
+          Simulation chart unavailable for this run.
+        </p>
       </ng-container>
+
+      <ng-template #deterministicOrCompareChart>
+        <ng-container *ngIf="!projectionChartModel.empty; else projectionChartEmpty">
+          <div class="projection-chart-wrap">
+            <svg
+              class="projection-chart"
+              [attr.viewBox]="'0 0 ' + projectionChartModel.width + ' ' + projectionChartModel.height"
+              role="img"
+              aria-label="Projection chart"
+              preserveAspectRatio="none"
+            >
+              <ng-container *ngFor="let tick of projectionChartModel.ticks">
+                <line
+                  class="projection-grid-line"
+                  [attr.x1]="14"
+                  [attr.x2]="projectionChartModel.width - 14"
+                  [attr.y1]="tick.y"
+                  [attr.y2]="tick.y"
+                />
+                <text class="projection-grid-label" x="16" [attr.y]="tick.y - 6">{{ tick.label }}</text>
+              </ng-container>
+
+              <line
+                class="projection-duration-marker"
+                [attr.x1]="projectionChartModel.durationX"
+                [attr.x2]="projectionChartModel.durationX"
+                y1="16"
+                [attr.y2]="projectionChartModel.height - 34"
+              />
+
+              <ng-container *ngFor="let line of projectionChartModel.series">
+                <path
+                  class="projection-line"
+                  [attr.d]="line.solidPath"
+                  [attr.stroke]="line.color"
+                />
+                <path
+                  class="projection-line projection-line--dashed"
+                  [attr.d]="line.dashedPath"
+                  [attr.stroke]="line.color"
+                />
+              </ng-container>
+
+              <ng-container *ngIf="chartTooltip as tooltip">
+                <circle
+                  *ngFor="let entry of tooltip.entries"
+                  class="projection-hover-dot"
+                  [attr.cx]="tooltip.anchorX"
+                  [attr.cy]="entry.pointY"
+                  r="4.5"
+                  [attr.fill]="entry.color"
+                />
+              </ng-container>
+
+              <ng-container *ngFor="let tick of projectionChartModel.xTicks">
+                <text class="projection-axis-label" [attr.x]="tick.x" [attr.y]="projectionChartModel.height - 8">
+                  {{ tick.label }}
+                </text>
+              </ng-container>
+
+              <rect
+                class="projection-hover-capture"
+                x="14"
+                y="16"
+                [attr.width]="projectionChartModel.width - 28"
+                [attr.height]="projectionChartModel.height - 50"
+                (mousemove)="onChartHover($event, projectionChartModel)"
+                (mouseleave)="clearChartHover()"
+              />
+            </svg>
+
+            <div
+              *ngIf="chartTooltip as tooltip"
+              class="projection-tooltip"
+              [style.left.px]="tooltip.popupX"
+              [style.top.px]="tooltip.popupY"
+            >
+              <div class="projection-tooltip-time">{{ tooltip.timeLabel }}</div>
+              <div class="projection-tooltip-row" *ngFor="let entry of tooltip.entries">
+                <span class="projection-tooltip-swatch" [style.--swatch]="entry.color"></span>
+                <span class="projection-tooltip-ticker">{{ entry.ticker }}</span>
+                <span class="projection-tooltip-value">{{ compactCurrency(entry.value) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="projection-legend">
+            <div class="projection-legend-item" *ngFor="let line of projectionChartModel.series">
+              <span class="projection-legend-swatch" [style.--swatch]="line.color"></span>
+              <span class="projection-legend-ticker">{{ line.ticker }}</span>
+              <span class="projection-legend-value">{{ compactCurrency(line.durationValue) }}</span>
+            </div>
+          </div>
+        </ng-container>
+      </ng-template>
 
       <ng-template #projectionChartEmpty>
         <div class="projection-empty" role="status">
@@ -172,7 +281,7 @@
               <select
                 id="fundTicker"
                 [(ngModel)]="selectedTicker"
-                (ngModelChange)="scheduleLiveProjection()"
+                (ngModelChange)="onTickerUserChange()"
                 name="fundTicker"
               >
                 <option value="" *ngIf="fundsLoading">Loading funds...</option>
@@ -333,6 +442,11 @@
           type="button"
           (click)="runPrimaryAction()"
           [disabled]="primaryActionDisabled()"
+          [attr.title]="
+            calculatorMode === 'single' && portfolioSimulationHoldings?.length
+              ? 'Saved runs apply to one fund at a time. Change the fund dropdown to clear the AI portfolio mix.'
+              : null
+          "
           [attr.aria-busy]="
             (calculatorMode === 'single' && projectionLoading) ||
             (calculatorMode === 'compare' && compareLoading)
@@ -349,7 +463,14 @@
             <span *ngIf="compareLoading">Saving…</span>
           </ng-container>
         </button>
-        <p class="actions-hint actions-hint--single" *ngIf="calculatorMode === 'single'">
+        <p
+          class="actions-hint actions-hint--single"
+          *ngIf="calculatorMode === 'single' && portfolioSimulationHoldings?.length"
+        >
+          AI portfolio is loaded for charts and simulation only. Change the <strong>Mutual fund</strong>
+          dropdown to save a single-fund snapshot to history.
+        </p>
+        <p class="actions-hint actions-hint--single" *ngIf="calculatorMode === 'single' && !portfolioSimulationHoldings?.length">
           Sign in to keep saved runs in <strong>Saved calculations</strong> below.
         </p>
         <p class="actions-hint" *ngIf="calculatorMode === 'compare'">

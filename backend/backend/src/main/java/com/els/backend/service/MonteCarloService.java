@@ -1,6 +1,18 @@
 package com.els.backend.service;
+
+import com.els.backend.dto.montecarlo.MonteCarloPortfolioRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * Monte Carlo simulation for the mutual fund calculator.
@@ -130,6 +142,162 @@ public class MonteCarloService{
         }
         response.setYearlyPaths(sampledPaths);
         return response;
+    }
+
+    /**
+     * Portfolio mode: weighted expected return and volatility (independent fund variance approximation),
+     * then same sampling pattern as {@link #simulate(MonteCarloRequest)} using portfolio-level beta and mean ER.
+     */
+    public MonteCarloResponse simulatePortfolio(MonteCarloPortfolioRequest req) {
+        double principal = req.principal();
+        double timeYears = req.timeYears();
+        double goal = req.goalAmount();
+        int n = req.nSimulations() > 0 ? req.nSimulations() : DEFAULT_SIMULATIONS;
+        List<MonteCarloPortfolioRequest.PortfolioHolding> holdings = req.holdings();
+
+        MonteCarloResponse response = new MonteCarloResponse();
+        response.setTicker("PORTFOLIO");
+        response.setPrincipal(principal);
+        response.setTimeYears(timeYears);
+
+        if (holdings == null || holdings.isEmpty() || principal <= 0 || timeYears <= 0) {
+            return buildEmptyResponse(response, goal);
+        }
+
+        double sumW = 0;
+        List<MonteCarloPortfolioRequest.PortfolioHolding> active = new ArrayList<>();
+        for (MonteCarloPortfolioRequest.PortfolioHolding h : holdings) {
+            if (h.ticker() == null || h.ticker().isBlank() || h.weight() <= 0) {
+                continue;
+            }
+            sumW += h.weight();
+            active.add(h);
+        }
+        if (sumW < 0.98 || sumW > 1.02 || active.isEmpty()) {
+            return buildEmptyResponse(response, goal);
+        }
+
+        LinkedHashSet<String> tickers = new LinkedHashSet<>();
+        for (MonteCarloPortfolioRequest.PortfolioHolding h : active) {
+            tickers.add(h.ticker().trim().toUpperCase(Locale.ROOT));
+        }
+        Map<String, double[]> metrics = fetchBetaAndErParallel(tickers);
+
+        double betaP = 0;
+        double muP = 0;
+        double varP = 0;
+        for (MonteCarloPortfolioRequest.PortfolioHolding h : active) {
+            String t = h.ticker().trim().toUpperCase(Locale.ROOT);
+            double w = h.weight() / sumW;
+            double[] be = metrics.get(t);
+            double beta = be != null ? be[0] : 0;
+            double er = be != null ? be[1] : 0;
+            betaP += w * beta;
+            muP += w * er;
+            double sigma = Math.abs(er * VOLATILITY_FACTOR);
+            if (sigma < 0.01) {
+                sigma = 0.01;
+            }
+            varP += w * w * sigma * sigma;
+        }
+        double sigmaP = Math.sqrt(Math.max(varP, 1e-6));
+        if (sigmaP < 0.01) {
+            sigmaP = 0.01;
+        }
+
+        response.setBeta(round(betaP));
+        response.setExpectedReturn(round(muP));
+
+        double deterministicRate = RISK_FREE_RATE + betaP * (muP - RISK_FREE_RATE);
+        double deterministicFV = principal * Math.exp(deterministicRate * timeYears);
+        response.setDeterministicFV(round(deterministicFV));
+
+        Random rng = new Random();
+        double[] finalValues = new double[n];
+        List<List<Double>> sampledPaths = new ArrayList<>();
+
+        for (int i = 0; i < n; i++) {
+            double sampledReturn = muP + sigmaP * rng.nextGaussian();
+            double r = RISK_FREE_RATE + betaP * (sampledReturn - RISK_FREE_RATE);
+            List<Double> path = new ArrayList<>(((int) timeYears) + 1);
+            path.add(round(principal));
+            for (int y = 1; y <= (int) timeYears; y++) {
+                double yearFv = principal * Math.exp(r * y);
+                path.add(round(Math.max(yearFv, 0)));
+            }
+            finalValues[i] = path.get(path.size() - 1);
+            if (i < MAX_PATHS_TO_STORE) {
+                sampledPaths.add(path);
+            }
+        }
+
+        Arrays.sort(finalValues);
+        double sharpeRatio = round((muP - RISK_FREE_RATE) / Math.max(sigmaP, 0.001));
+        double riskAdjustedReturn = round(muP / (betaP > 0 ? betaP : 1));
+        double breakevenYears = round(Math.log(2) / (deterministicRate > 0 ? deterministicRate : 0.01));
+        double inflationAdjustedFV = round(principal * Math.exp((deterministicRate - INFLATION_RATE) * timeYears));
+        double valueAtRisk = round(principal - percentile(finalValues, 5));
+
+        response.setPercentile10(percentile(finalValues, 10));
+        response.setPercentile25(percentile(finalValues, 25));
+        response.setPercentile50(percentile(finalValues, 50));
+        response.setPercentile75(percentile(finalValues, 75));
+        response.setPercentile90(percentile(finalValues, 90));
+        response.setWorstCase(percentile(finalValues, 10));
+        response.setMedianCase(percentile(finalValues, 50));
+        response.setBestCase(percentile(finalValues, 90));
+        response.setSharpeRatio(sharpeRatio);
+        response.setRiskAdjustedReturn(riskAdjustedReturn);
+        response.setBreakevenYears(breakevenYears);
+        response.setInflationAdjustedFV(inflationAdjustedFV);
+        response.setValueAtRisk(valueAtRisk);
+
+        if (goal > 0) {
+            long hits = 0;
+            for (double v : finalValues) {
+                if (v >= goal) {
+                    hits++;
+                }
+            }
+            response.setProbabilityOfGoal(round((double) hits / n));
+        } else {
+            response.setProbabilityOfGoal(-1);
+        }
+        response.setYearlyPaths(sampledPaths);
+        return response;
+    }
+
+    private Map<String, double[]> fetchBetaAndErParallel(Set<String> tickers) {
+        if (tickers.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, double[]> out = new ConcurrentHashMap<>();
+        int pool = Math.min(8, Math.max(1, tickers.size()));
+        ExecutorService ex = Executors.newFixedThreadPool(pool);
+        try {
+            List<CompletableFuture<Void>> cfs = tickers.stream()
+                    .map(t -> CompletableFuture.runAsync(
+                            () -> {
+                                double beta = BetaService.getBeta(t);
+                                double er = NewtonService.getExpectedReturn(t);
+                                out.put(t, new double[] {beta, er});
+                            },
+                            ex))
+                    .collect(Collectors.toList());
+            CompletableFuture.allOf(cfs.toArray(CompletableFuture[]::new))
+                    .get(40, TimeUnit.SECONDS);
+            return out;
+        } catch (TimeoutException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.GATEWAY_TIMEOUT, "Market data fetch timed out. Try again.");
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not load data for portfolio simulation.");
+        } finally {
+            ex.shutdownNow();
+        }
     }
 
     //linear interpolation percentile on presorted arr

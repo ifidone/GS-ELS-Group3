@@ -6,6 +6,9 @@
       Group saved calculator runs into named portfolios. Add or remove calculations from a group
       without deleting the underlying saves (manage those on the calculator page).
     </p>
+    <div class="page-actions">
+      <button type="button" class="btn-ai" (click)="openAiBuilder()">Generate AI portfolio</button>
+    </div>
   </header>
 
   @if (!authFacade.currentUser()) {
@@ -88,11 +91,17 @@
           <div class="detail-empty">
             <p>Select a portfolio to view details, or create a new one.</p>
           </div>
-        } @else if (detailLoading) {
+        } @else if (detailLoading && !detail) {
           <p class="msg-muted">Loading portfolio…</p>
-        } @else if (detailError) {
+        } @else if (detailError && !detail) {
           <p class="msg-error" role="alert">{{ detailError }}</p>
         } @else if (detail) {
+          @if (detailRefreshing) {
+            <p class="detail-refresh-hint" aria-live="polite">Updating full details…</p>
+          }
+          @if (detailError) {
+            <p class="msg-error" role="alert">{{ detailError }}</p>
+          }
           <div class="detail-header">
             <h2 class="detail-title">{{ detail.metadata.name }}</h2>
             <button type="button" class="btn-ghost" (click)="clearSelection()">Close</button>
@@ -200,6 +209,78 @@
           }
         }
       </div>
+    </div>
+  }
+
+  @if (aiModalOpen) {
+    <div class="modal-backdrop" (click)="closeAiBuilder()" aria-hidden="true"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
+      <div class="modal-head">
+        <h2 id="ai-modal-title">AI portfolio builder</h2>
+        <button type="button" class="btn-ghost modal-close" (click)="closeAiBuilder()">Close</button>
+      </div>
+      <p class="modal-lead">
+        Builds a diversified mix using only funds from our catalog and the same return/beta data as the
+        calculator. For education—not personal financial advice.
+      </p>
+
+      @if (aiResult && !aiGenerating) {
+        <div class="ai-result">
+          <div class="ai-result-badge">{{ aiResult.riskLabel }} risk · {{ aiYears }} yr horizon</div>
+          <p class="ai-result-fv">
+            Illustrative value at horizon:
+            <strong>${{ aiResult.deterministicFutureValue | number: '1.0-0' }}</strong>
+          </p>
+          <p class="ai-result-metrics">
+            Blended annual rate (CAPM mix) {{ (aiResult.portfolioBlendedAnnualRate * 100) | number: '1.2-2' }}% ·
+            Weighted avg. historical return {{ (aiResult.portfolioWeightedExpectedReturn * 100) | number: '1.2-2' }}%
+          </p>
+          <ul class="ai-allocation-list">
+            @for (row of aiResult.allocations; track row.ticker) {
+              <li>
+                <span class="ai-allocation-ticker">{{ row.ticker }}</span>
+                <span class="ai-allocation-name">{{ row.name }}</span>
+                <span class="ai-allocation-pct">{{ row.weightPercent | number: '1.1-1' }}%</span>
+              </li>
+            }
+          </ul>
+          <div class="ai-why">
+            <h3>Why this portfolio?</h3>
+            <p>{{ aiResult.explanation }}</p>
+          </div>
+          <div class="ai-result-actions">
+            <button type="button" class="btn-primary" (click)="simulateAiPortfolio()">
+              Simulate this portfolio
+            </button>
+            <button type="button" class="btn-secondary" (click)="resetAiBuilder()">Start over</button>
+          </div>
+        </div>
+      } @else {
+        <div class="ai-form">
+          <label for="ai-amount">Investment amount ($)</label>
+          <input id="ai-amount" type="number" min="1" step="1" [(ngModel)]="aiAmount" name="aiAmount" />
+          <label for="ai-years">Time horizon (years)</label>
+          <input id="ai-years" type="number" min="1" max="60" step="1" [(ngModel)]="aiYears" name="aiYears" />
+          <fieldset class="ai-risk">
+            <legend>Risk tolerance</legend>
+            <label><input type="radio" name="aiRisk" value="LOW" [(ngModel)]="aiRisk" /> Low</label>
+            <label><input type="radio" name="aiRisk" value="MEDIUM" [(ngModel)]="aiRisk" /> Medium</label>
+            <label><input type="radio" name="aiRisk" value="HIGH" [(ngModel)]="aiRisk" /> High</label>
+          </fieldset>
+          @if (aiError) {
+            <p class="msg-error" role="alert">{{ aiError }}</p>
+          }
+          @if (aiGenerating) {
+            <p class="ai-wait-hint" aria-live="polite">
+              Loading live beta and return data for each fund in the catalog (runs in parallel). Typically
+              under a minute—if it stalls, check that the backend is running and try again.
+            </p>
+          }
+          <button type="button" class="btn-primary" [disabled]="aiGenerating" (click)="generateAiPortfolio()">
+            {{ aiGenerating ? 'Building…' : 'Generate portfolio' }}
+          </button>
+        </div>
+      }
     </div>
   }
 </section>

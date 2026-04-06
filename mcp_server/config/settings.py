@@ -44,7 +44,9 @@ def get_db_connection_params() -> dict[str, Any]:
 
 def get_host_port() -> tuple[str, int]:
     host = os.getenv("MCP_HOST", "0.0.0.0")
-    port_raw = os.getenv("MCP_PORT", "8080")
+    # Default 8000 matches Spring Boot spring.ai.mcp.client...url (localhost:8000).
+    # Java backend uses 8080, so MCP must not default to the same port for local dev.
+    port_raw = os.getenv("MCP_PORT", "8000")
     try:
         port = int(port_raw)
     except ValueError as exc:

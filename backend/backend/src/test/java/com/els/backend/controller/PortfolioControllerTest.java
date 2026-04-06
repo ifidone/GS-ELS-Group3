@@ -2,6 +2,7 @@ package com.els.backend.controller;
 
 import com.els.backend.database.auth.AuthStore;
 import com.els.backend.database.portfolios.PortfolioStore;
+import com.els.backend.service.FirebaseAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -26,20 +27,22 @@ class PortfolioControllerTest {
 
     private PortfolioStore portfolioStore;
     private AuthStore authStore;
+    private FirebaseAuthService firebaseAuthService;
     private PortfolioController controller;
 
     @BeforeEach
     void setUp() {
         portfolioStore = mock(PortfolioStore.class);
         authStore = mock(AuthStore.class);
-        controller = new PortfolioController(portfolioStore, authStore);
+        firebaseAuthService = mock(FirebaseAuthService.class);
+        controller = new PortfolioController(portfolioStore, authStore, firebaseAuthService);
     }
 
     @Test
-    void list_missingUid_returnsBadRequest() {
+    void list_missingUid_returnsUnauthorized() {
         ResponseEntity<List<PortfolioController.PortfolioListItemResponse>> response =
-                controller.list(null, 0, 20, "createdAt,desc");
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+                controller.list(null, null, 0, 20, "createdAt,desc");
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }
 
     @Test
@@ -57,7 +60,7 @@ class PortfolioControllerTest {
 
         PortfolioController.PortfolioCreateRequest request =
                 new PortfolioController.PortfolioCreateRequest(uid, "Retirement 2045", "Long-term portfolio");
-        ResponseEntity<Object> response = controller.create(request);
+        ResponseEntity<Object> response = controller.create(null, request);
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -73,7 +76,7 @@ class PortfolioControllerTest {
         PortfolioController.PortfolioNameRequest request =
                 new PortfolioController.PortfolioNameRequest(uid, "Missing Portfolio");
         ResponseEntity<PortfolioController.PortfolioDetailResponse> response =
-                controller.get("Missing Portfolio", request);
+                controller.get(null, "Missing Portfolio", request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
@@ -85,7 +88,7 @@ class PortfolioControllerTest {
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
         ResponseEntity<List<PortfolioController.LinkedCalculationResponse>> response =
-                controller.listItems("Retirement 2045", request);
+                controller.listItems(null, "Retirement 2045", request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -99,7 +102,7 @@ class PortfolioControllerTest {
         when(portfolioStore.calculationExistsForUid(uid, 55L)).thenReturn(false);
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
-        ResponseEntity<Void> response = controller.addItem("Aggressive Growth", 55L, request);
+        ResponseEntity<Void> response = controller.addItem(null, "Aggressive Growth", 55L, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
@@ -120,7 +123,7 @@ class PortfolioControllerTest {
 
         PortfolioController.PortfolioUpdateRequest request =
                 new PortfolioController.PortfolioUpdateRequest(uid, "Aggressive Growth", "Updated");
-        ResponseEntity<Object> response = controller.update("Retirement 2045", request);
+        ResponseEntity<Object> response = controller.update(null, "Retirement 2045", request);
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
     }
@@ -131,7 +134,7 @@ class PortfolioControllerTest {
         when(portfolioStore.deleteByName(uid, "Aggressive Growth")).thenReturn(false);
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
-        ResponseEntity<Void> response = controller.delete("Aggressive Growth", request);
+        ResponseEntity<Void> response = controller.delete(null, "Aggressive Growth", request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
@@ -143,7 +146,7 @@ class PortfolioControllerTest {
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
         ResponseEntity<List<PortfolioController.LinkedCalculationResponse>> response =
-                controller.listAvailable("Aggressive Growth", request);
+                controller.listAvailable(null, "Aggressive Growth", request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
@@ -167,7 +170,7 @@ class PortfolioControllerTest {
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
         ResponseEntity<List<PortfolioController.LinkedCalculationResponse>> response =
-                controller.listAvailable("Aggressive Growth", request);
+                controller.listAvailable(null, "Aggressive Growth", request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -193,7 +196,7 @@ class PortfolioControllerTest {
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
         ResponseEntity<List<PortfolioController.LinkedCalculationResponse>> response =
-                controller.listItems("Aggressive Growth", request);
+                controller.listItems(null, "Aggressive Growth", request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -207,7 +210,7 @@ class PortfolioControllerTest {
         when(portfolioStore.calculationExistsForUid(uid, 3L)).thenReturn(true);
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
-        ResponseEntity<Void> response = controller.addItem("Aggressive Growth", 3L, request);
+        ResponseEntity<Void> response = controller.addItem(null, "Aggressive Growth", 3L, request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
     }
@@ -220,7 +223,7 @@ class PortfolioControllerTest {
         when(portfolioStore.removeCalculation(uid, 10L, 3L)).thenReturn(false);
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
-        ResponseEntity<Object> response = controller.removeItem("Aggressive Growth", 3L, request);
+        ResponseEntity<Object> response = controller.removeItem(null, "Aggressive Growth", 3L, request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
@@ -233,7 +236,7 @@ class PortfolioControllerTest {
         when(portfolioStore.removeCalculation(uid, 10L, 3L)).thenReturn(true);
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
-        ResponseEntity<Object> response = controller.removeItem("Aggressive Growth", 3L, request);
+        ResponseEntity<Object> response = controller.removeItem(null, "Aggressive Growth", 3L, request);
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
     }
@@ -260,7 +263,7 @@ class PortfolioControllerTest {
 
         PortfolioController.UidRequest request = new PortfolioController.UidRequest(uid);
         ResponseEntity<List<PortfolioController.PortfolioListItemResponse>> response =
-                controller.list(request, 0, 20, "createdAt,desc");
+                controller.list(null, request, 0, 20, "createdAt,desc");
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());

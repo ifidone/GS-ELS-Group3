@@ -2,7 +2,8 @@ import { Component, OnDestroy, OnInit, effect, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { Router } from '@angular/router';
+import { firstValueFrom, timeout, TimeoutError } from 'rxjs';
 import { environment } from '../../../environment';
 import { AuthFacade } from '../../core/auth.facade';
 
@@ -77,6 +78,51 @@ type FundOption = {
   category?: string;
 };
 
+export type PortfolioSimulationHolding = {
+  ticker: string;
+  weight: number;
+  name?: string;
+  beta: number;
+  expectedReturn: number;
+};
+
+export type PortfolioSimulationState = {
+  principal: number;
+  years: number;
+  holdings: PortfolioSimulationHolding[];
+  blendedAnnualRate: number;
+  weightedExpectedReturn: number;
+  deterministicFutureValue: number;
+};
+
+type MonteCarloResponse = {
+  ticker: string;
+  principal: number;
+  timeYears: number;
+  beta: number;
+  expectedReturn: number;
+  worstCase: number;
+  medianCase: number;
+  bestCase: number;
+  deterministicFV: number;
+  yearlyPaths: number[][];
+};
+
+type SimulationChartModel = {
+  width: number;
+  height: number;
+  maxValue: number;
+  ticks: Array<{ label: string; y: number; value: number }>;
+  xTicks: Array<{ label: string; x: number }>;
+  durationX: number;
+  durationMonths: number;
+  endMonths: number;
+  bandPath: string;
+  medianPath: string;
+  deterministicPath: string;
+  faintPaths: string[];
+};
+
 /**
  * Accepts plain numbers and shorthand: 15k, 1.5M, $250,000, 2.5b (k/m/b = thousand / million / billion).
  */
@@ -109,11 +155,19 @@ function parseInvestmentAmountInput(raw: string): number | null {
 })
 export class CalculatorComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
+  private router = inject(Router);
   private authFacade = inject(AuthFacade);
   private readonly calculatorApiUrl = `${environment.apiBaseUrl}/api/calculator/project`;
   private readonly calculationsApiUrl = `${environment.apiBaseUrl}/api/calculations`;
   private readonly fundsApiUrl = `${environment.apiBaseUrl}/api/funds`;
+  private readonly monteCarloApiUrl = `${environment.apiBaseUrl}/api/monte-carlo`;
+  private readonly monteCarloPortfolioApiUrl = `${environment.apiBaseUrl}/api/monte-carlo/portfolio`;
+  /** Backend calls Newton; bound wait so Simulation view does not spin forever. */
+  private readonly monteCarloHttpTimeoutMs = 90_000;
   private lastHistoryUid: string | null = null;
+
+  /** Router state from Portfolios → “Simulate this portfolio”; consumed in ngOnInit. */
+  private pendingPortfolioSimulation: PortfolioSimulationState | null = null;
 
   private readonly fallbackFunds: FundOption[] = [
     { name: 'Vanguard 500 Index', ticker: 'VFIAX' },
@@ -150,6 +204,14 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   compareRight: CalculatorProjectionResponse | null = null;
   compareLoading = false;
 
+  /** When set, single-fund API is skipped; projections use weighted holdings (AI portfolio handoff). */
+  portfolioSimulationHoldings: PortfolioSimulationHolding[] | null = null;
+
+  projectionViewMode: 'deterministic' | 'simulation' = 'deterministic';
+  monteCarloResult: MonteCarloResponse | null = null;
+  monteCarloLoading = false;
+  monteCarloError = '';
+
   projectionError = '';
   history: SavedCalculation[] = [];
   historyError = '';
@@ -158,12 +220,17 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   private projectionDebounceHandle: ReturnType<typeof setTimeout> | null = null;
   private projectionRequestSeq = 0;
   private compareProjectionSeq = 0;
+  private monteCarloRequestSeq = 0;
   private readonly liveDebounceMs = 180;
   private readonly chartWidth = 560;
   private readonly chartHeight = 250;
   private readonly chartPadding = { top: 16, right: 14, bottom: 34, left: 14 };
 
   constructor() {
+    const nav = this.router.getCurrentNavigation();
+    const st = nav?.extras?.state as { portfolioSimulation?: PortfolioSimulationState } | undefined;
+    this.pendingPortfolioSimulation = st?.portfolioSimulation ?? null;
+
     effect(() => {
       const user = this.authFacade.currentUser();
       const uid = user?.uid ?? null;
@@ -182,6 +249,10 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   ngOnInit() {
     void this.loadFunds();
     void this.loadHistory();
+    if (this.pendingPortfolioSimulation) {
+      this.applyPortfolioSimulation(this.pendingPortfolioSimulation);
+      this.pendingPortfolioSimulation = null;
+    }
   }
 
   ngOnDestroy() {
@@ -232,6 +303,7 @@ export class CalculatorComponent implements OnInit, OnDestroy {
     }
     this.calculatorMode = mode;
     if (mode === 'compare') {
+      this.projectionViewMode = 'deterministic';
       if (!this.compareTickerA.trim() && this.selectedTicker.trim()) {
         this.compareTickerA = this.selectedTicker;
       }
@@ -253,6 +325,9 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   /** Disables the main button when inputs are incomplete or a request is in flight. */
   primaryActionDisabled(): boolean {
     if (this.calculatorMode === 'single') {
+      if (this.portfolioSimulationHoldings?.length) {
+        return true;
+      }
       if (this.projectionLoading) {
         return true;
       }
@@ -347,6 +422,21 @@ export class CalculatorComponent implements OnInit, OnDestroy {
     this.projectionError = '';
 
     try {
+      if (this.portfolioSimulationHoldings?.length) {
+        this.refreshSyntheticPortfolioResult(investment, years);
+        if (seq !== this.projectionRequestSeq) {
+          return;
+        }
+        this.chartTooltip = null;
+        if (this.projectionViewMode === 'simulation') {
+          void this.runMonteCarloSimulation();
+        }
+        if (opts.save && this.result) {
+          void this.saveCalculation(this.result);
+        }
+        return;
+      }
+
       const response = await firstValueFrom(
         this.http.post<CalculatorProjectionResponse>(this.calculatorApiUrl, {
           ticker,
@@ -361,6 +451,9 @@ export class CalculatorComponent implements OnInit, OnDestroy {
 
       this.result = response;
       this.chartTooltip = null;
+      if (this.projectionViewMode === 'simulation') {
+        void this.runMonteCarloSimulation();
+      }
       if (opts.save) {
         void this.saveCalculation(response);
       }
@@ -376,6 +469,281 @@ export class CalculatorComponent implements OnInit, OnDestroy {
         this.projectionLoading = false;
       }
     }
+  }
+
+  private applyPortfolioSimulation(raw: PortfolioSimulationState): void {
+    this.calculatorMode = 'single';
+    this.portfolioSimulationHoldings = raw.holdings;
+    this.initialAmountInput = String(Math.round(raw.principal));
+    this.durationMonths = Math.min(
+      this.durationMaxMonths,
+      Math.max(this.durationMinMonths, Math.round(raw.years * 12)),
+    );
+    this.selectedTicker = raw.holdings[0]?.ticker ?? '';
+    const years = this.durationMonths / 12;
+    this.refreshSyntheticPortfolioResult(raw.principal, years);
+    this.projectionViewMode = 'simulation';
+    this.monteCarloResult = null;
+    this.monteCarloError = '';
+    this.chartTooltip = null;
+    void this.runMonteCarloSimulation();
+  }
+
+  private refreshSyntheticPortfolioResult(principal: number, years: number): void {
+    const h = this.portfolioSimulationHoldings;
+    if (!h?.length) {
+      return;
+    }
+    let wb = 0;
+    let wer = 0;
+    for (const x of h) {
+      wb += x.weight * x.beta;
+      wer += x.weight * x.expectedReturn;
+    }
+    const capm = this.computeCapmRate(wb, wer);
+    const fv = principal * Math.exp(capm * years);
+    this.result = {
+      ticker: 'PORTFOLIO',
+      initialInvestment: principal,
+      years,
+      beta: wb,
+      expectedReturn: wer,
+      futureValue: fv,
+      timeSeries: {},
+    };
+  }
+
+  private computeCapmRate(beta: number, expectedReturn: number): number {
+    const riskFreeRate = 0.04;
+    const raw = riskFreeRate + beta * (expectedReturn - riskFreeRate);
+    return Math.max(riskFreeRate, raw);
+  }
+
+  setProjectionViewMode(mode: 'deterministic' | 'simulation'): void {
+    if (this.calculatorMode === 'compare') {
+      return;
+    }
+    this.projectionViewMode = mode;
+    this.chartTooltip = null;
+    if (mode === 'simulation' && this.singleModeInputsComplete() && this.result != null) {
+      void this.runMonteCarloSimulation();
+    }
+  }
+
+  onTickerUserChange(): void {
+    this.portfolioSimulationHoldings = null;
+    this.monteCarloResult = null;
+    this.scheduleLiveProjection();
+  }
+
+  private async runMonteCarloSimulation(): Promise<void> {
+    const projSeqAtStart = this.projectionRequestSeq;
+    const investment = parseInvestmentAmountInput(this.initialAmountInput);
+    const years = this.durationMonths / 12;
+    if (
+      investment == null ||
+      !Number.isFinite(investment) ||
+      investment <= 0 ||
+      !Number.isFinite(years) ||
+      years <= 0 ||
+      this.calculatorMode !== 'single'
+    ) {
+      return;
+    }
+    if (!this.portfolioSimulationHoldings?.length) {
+      const ticker = this.selectedTicker?.trim() ?? '';
+      if (!ticker) {
+        return;
+      }
+    }
+
+    const mcSeq = ++this.monteCarloRequestSeq;
+    this.monteCarloLoading = true;
+    this.monteCarloError = '';
+    try {
+      let data: MonteCarloResponse;
+      if (this.portfolioSimulationHoldings?.length) {
+        data = await firstValueFrom(
+          this.http
+            .post<MonteCarloResponse>(this.monteCarloPortfolioApiUrl, {
+              principal: investment,
+              timeYears: years,
+              goalAmount: 0,
+              nSimulations: 500,
+              holdings: this.portfolioSimulationHoldings.map((h) => ({
+                ticker: h.ticker,
+                weight: h.weight,
+              })),
+            })
+            .pipe(timeout(this.monteCarloHttpTimeoutMs)),
+        );
+      } else {
+        const ticker = this.selectedTicker?.trim() ?? '';
+        data = await firstValueFrom(
+          this.http
+            .post<MonteCarloResponse>(this.monteCarloApiUrl, {
+              ticker,
+              principal: investment,
+              timeYears: years,
+              goalAmount: 0,
+              nSimulations: 500,
+            })
+            .pipe(timeout(this.monteCarloHttpTimeoutMs)),
+        );
+      }
+      if (mcSeq !== this.monteCarloRequestSeq || projSeqAtStart !== this.projectionRequestSeq) {
+        return;
+      }
+      this.monteCarloResult = data;
+    } catch (error) {
+      if (mcSeq !== this.monteCarloRequestSeq) {
+        return;
+      }
+      console.error('Monte Carlo error', error);
+      this.monteCarloError = this.projectionErrorMessage(error);
+      this.monteCarloResult = null;
+    } finally {
+      if (mcSeq === this.monteCarloRequestSeq) {
+        this.monteCarloLoading = false;
+      }
+    }
+  }
+
+  get simulationChartModel(): SimulationChartModel | null {
+    if (
+      this.projectionViewMode !== 'simulation' ||
+      !this.monteCarloResult?.yearlyPaths?.length ||
+      !this.result
+    ) {
+      return null;
+    }
+    const paths = this.monteCarloResult.yearlyPaths;
+    const nYears = paths[0]?.length ?? 0;
+    if (nYears < 2) {
+      return null;
+    }
+
+    const p10: number[] = [];
+    const p50: number[] = [];
+    const p90: number[] = [];
+    for (let y = 0; y < nYears; y++) {
+      const vals = paths
+        .map((p) => p[y] ?? 0)
+        .filter((v) => Number.isFinite(v))
+        .sort((a, b) => a - b);
+      if (vals.length === 0) {
+        p10.push(0);
+        p50.push(0);
+        p90.push(0);
+      } else {
+        p10.push(this.percentileSorted(vals, 10));
+        p50.push(this.percentileSorted(vals, 50));
+        p90.push(this.percentileSorted(vals, 90));
+      }
+    }
+
+    const endMonths = this.chartEndMonths();
+    let maxValue = Math.max(
+      ...p90,
+      ...p50,
+      this.result.futureValue,
+      this.monteCarloResult.bestCase ?? 0,
+    );
+    if (!Number.isFinite(maxValue) || maxValue <= 0) {
+      maxValue = 1;
+    }
+
+    const toPath = (values: number[]): string => {
+      return values
+        .map((value, yi) => {
+          const month = yi * 12;
+          const x = this.scaleX(Math.min(month, endMonths), endMonths);
+          const y = this.scaleY(value, maxValue);
+          return `${yi === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+        })
+        .join(' ');
+    };
+
+    const p90Path = toPath(p90);
+    const p10Rev = [...p10].reverse();
+    const p10PathBack = p10Rev
+      .map((value, idx) => {
+        const yi = nYears - 1 - idx;
+        const month = yi * 12;
+        const x = this.scaleX(Math.min(month, endMonths), endMonths);
+        const y = this.scaleY(value, maxValue);
+        return `L ${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(' ');
+    const bandPath = p90Path + ' ' + p10PathBack + ' Z';
+
+    const medianPath = toPath(p50);
+
+    const detPoints = Array.from({ length: nYears }, (_, yi) => {
+      const month = yi * 12;
+      const yv = this.computeProjectionValue(
+        this.result!.initialInvestment,
+        this.result!.beta,
+        this.result!.expectedReturn,
+        yi,
+      );
+      return { month, value: yv };
+    });
+    const deterministicPath = detPoints
+      .map((pt, index) => {
+        const x = this.scaleX(Math.min(pt.month, endMonths), endMonths);
+        const y = this.scaleY(pt.value, maxValue);
+        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+      })
+      .join(' ');
+
+    const faintPaths: string[] = [];
+    const cap = Math.min(48, paths.length);
+    for (let i = 0; i < cap; i++) {
+      const row = paths[i];
+      if (!row?.length) {
+        continue;
+      }
+      faintPaths.push(
+        row
+          .map((value, yi) => {
+            const month = yi * 12;
+            const x = this.scaleX(Math.min(month, endMonths), endMonths);
+            const y = this.scaleY(value, maxValue);
+            return `${yi === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+          })
+          .join(' '),
+      );
+    }
+
+    return {
+      width: this.chartWidth,
+      height: this.chartHeight,
+      maxValue,
+      ticks: this.buildChartYTicks(maxValue),
+      xTicks: this.buildChartXTicks(endMonths),
+      durationX: this.scaleX(this.durationMonths, endMonths),
+      durationMonths: this.durationMonths,
+      endMonths,
+      bandPath,
+      medianPath,
+      deterministicPath,
+      faintPaths,
+    };
+  }
+
+  private percentileSorted(sorted: number[], p: number): number {
+    if (sorted.length === 0) {
+      return 0;
+    }
+    const index = (p / 100) * (sorted.length - 1);
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    if (lower === upper) {
+      return sorted[lower];
+    }
+    const w = index - lower;
+    return sorted[lower] * (1 - w) + sorted[upper] * w;
   }
 
   private async runCompareProjection(): Promise<void> {
@@ -499,11 +867,23 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   }
 
   private projectionErrorMessage(error: unknown): string {
+    if (error instanceof TimeoutError) {
+      return 'Request timed out while fetching market data. Check the backend and network, then try again.';
+    }
+    if (
+      (error instanceof DOMException || error instanceof Error) &&
+      (error as Error).name === 'AbortError'
+    ) {
+      return 'Request was cancelled or timed out. Try again.';
+    }
     if (!(error instanceof HttpErrorResponse)) {
       return 'Could not update projection.';
     }
     if (error.status === 0) {
       return 'Cannot reach the API. Is the backend running?';
+    }
+    if (error.status === 504) {
+      return 'Market data took too long. Try again in a moment.';
     }
     return `Projection failed (HTTP ${error.status}).`;
   }
@@ -613,6 +993,27 @@ export class CalculatorComponent implements OnInit, OnDestroy {
   }
 
   /** Label next to slider and in results (e.g. "6 months", "1 year", "10 years", "2 years 3 months"). */
+  get chartHorizonEndLabel(): string {
+    return this.horizonLabelFromMonths(this.chartEndMonths());
+  }
+
+  get chartPanelEyebrow(): string {
+    if (this.calculatorMode === 'single' && this.projectionViewMode === 'simulation') {
+      return 'Monte Carlo simulation';
+    }
+    return this.projectionChartModel.title;
+  }
+
+  get chartPanelSubtitle(): string {
+    if (this.calculatorMode === 'single' && this.projectionViewMode === 'simulation') {
+      return (
+        'Shaded band: 10th–90th percentile outcomes. Faint lines: sample paths. ' +
+        'Solid white: median simulation. Dashed: deterministic baseline.'
+      );
+    }
+    return this.projectionChartModel.subtitle;
+  }
+
   horizonLabelFromMonths(months: number): string {
     const m = Math.round(months);
     if (m < 1) {

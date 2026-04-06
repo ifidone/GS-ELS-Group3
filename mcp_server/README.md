@@ -33,7 +33,7 @@ The MCP server reads configuration from `.env`.
 
 Required:
 - `MCP_HOST` (default `0.0.0.0`)
-- `MCP_PORT` (default `8080`)
+- `MCP_PORT` (default `8000` locally so it matches Spring’s `MCP_SERVER_ORIGIN`; Docker image sets `8080`)
 - `MCP_PATH` (default `/mcp`)
 - `BACKEND_BASE_URL` (default `http://localhost:8080`)
 - `BACKEND_TIMEOUT_SECONDS` (default `10`)

@@ -2,7 +2,12 @@ package com.els.backend.controller;
 
 import com.els.backend.database.auth.AuthStore;
 import com.els.backend.database.portfolios.PortfolioStore;
+import com.els.backend.service.FirebaseAuthService;
+import com.google.firebase.auth.FirebaseAuthException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -13,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,31 +36,45 @@ import java.util.Optional;
 @CrossOrigin(origins = "${app.frontend-origin}")
 public class PortfolioController {
 
-    // Portfolio responses are name-based and scoped by uid from request bodies.
+    private static final Logger logger = LoggerFactory.getLogger(PortfolioController.class);
+
+    // Portfolio responses are name-based and scoped by uid (Bearer token preferred; JSON body uid for tools/tests).
     private static final double RISK_FREE_RATE = 0.04;
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
 
     private final PortfolioStore portfolioStore;
     private final AuthStore authStore;
+    private final FirebaseAuthService firebaseAuthService;
 
-    public PortfolioController(PortfolioStore portfolioStore, AuthStore authStore) {
+    public PortfolioController(
+            PortfolioStore portfolioStore,
+            AuthStore authStore,
+            FirebaseAuthService firebaseAuthService
+    ) {
         this.portfolioStore = portfolioStore;
         this.authStore = authStore;
+        this.firebaseAuthService = firebaseAuthService;
     }
 
     @GetMapping
     public ResponseEntity<List<PortfolioListItemResponse>> list(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @RequestBody(required = false) UidRequest request,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "20") int size,
             @RequestParam(value = "sort", defaultValue = "createdAt,desc") String sort
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        authStore.insertIfMissingUid(uid);
+        FirebaseAuthService.VerifiedFirebaseUser verified = verifyUser(authorizationHeader);
+        if (verified != null) {
+            authStore.insertIfMissing(verified);
+        } else {
+            authStore.insertIfMissingUid(uid);
+        }
 
         int safePage = Math.max(page, 0);
         int safeSize = normalizeSize(size);
@@ -93,18 +113,24 @@ public class PortfolioController {
 
     @PostMapping
     public ResponseEntity<Object> create(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @RequestBody(required = false) PortfolioCreateRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        if (request.name() == null || request.name().isBlank()) {
+        if (request == null || request.name() == null || request.name().isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
         String trimmedName = request.name().trim();
-        authStore.insertIfMissingUid(uid);
+        FirebaseAuthService.VerifiedFirebaseUser verified = verifyUser(authorizationHeader);
+        if (verified != null) {
+            authStore.insertIfMissing(verified);
+        } else {
+            authStore.insertIfMissingUid(uid);
+        }
         if (portfolioStore.portfolioNameExists(uid, trimmedName)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(new ErrorResponse("Portfolio with the same name already exists."));
@@ -125,20 +151,19 @@ public class PortfolioController {
 
     @GetMapping("/{name}")
     public ResponseEntity<PortfolioDetailResponse> get(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("name") String name,
             @RequestBody(required = false) PortfolioNameRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (name == null || name.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        if (request == null || request.name() == null || request.name().isBlank()) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-        if (!name.trim().equalsIgnoreCase(request.name().trim())) {
+        if (request != null && request.name() != null && !request.name().isBlank()
+                && !name.trim().equalsIgnoreCase(request.name().trim())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
@@ -166,14 +191,18 @@ public class PortfolioController {
 
     @PatchMapping("/{name}")
     public ResponseEntity<Object> update(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("name") String name,
             @RequestBody(required = false) PortfolioUpdateRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (name == null || name.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+        if (request == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
 
@@ -214,12 +243,13 @@ public class PortfolioController {
 
     @DeleteMapping("/{name}")
     public ResponseEntity<Void> delete(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("name") String name,
             @RequestBody(required = false) UidRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (name == null || name.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -233,12 +263,13 @@ public class PortfolioController {
 
     @GetMapping("/{portfolioId}/items")
     public ResponseEntity<List<LinkedCalculationResponse>> listItems(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("portfolioId") String portfolioName,
             @RequestBody(required = false) UidRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (portfolioName == null || portfolioName.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -257,13 +288,14 @@ public class PortfolioController {
 
     @PutMapping("/{portfolioId}/items/{calculationId}")
     public ResponseEntity<Void> addItem(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("portfolioId") String portfolioName,
             @PathVariable("calculationId") long calculationId,
             @RequestBody(required = false) UidRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (portfolioName == null || portfolioName.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -282,13 +314,14 @@ public class PortfolioController {
 
     @DeleteMapping("/{portfolioId}/items/{calculationId}")
     public ResponseEntity<Object> removeItem(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("portfolioId") String portfolioName,
             @PathVariable("calculationId") long calculationId,
             @RequestBody(required = false) UidRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (portfolioName == null || portfolioName.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -312,12 +345,13 @@ public class PortfolioController {
 
     @GetMapping("/{portfolioId}/available-calculations")
     public ResponseEntity<List<LinkedCalculationResponse>> listAvailable(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             @PathVariable("portfolioId") String portfolioName,
             @RequestBody(required = false) UidRequest request
     ) {
-        String uid = extractUid(request);
+        String uid = resolveUid(authorizationHeader, request);
         if (uid == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         if (portfolioName == null || portfolioName.isBlank()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -362,6 +396,43 @@ public class PortfolioController {
             return null;
         }
         return request.uid().trim();
+    }
+
+    /**
+     * Browsers cannot send a body on GET; prefer verifying {@code Authorization: Bearer} and using that uid.
+     */
+    private String resolveUid(String authorizationHeader, UidCarrier request) {
+        if (authorizationHeader != null && !authorizationHeader.isBlank()) {
+            FirebaseAuthService.VerifiedFirebaseUser user = verifyUser(authorizationHeader);
+            if (user != null) {
+                return user.uid();
+            }
+        }
+        return extractUid(request);
+    }
+
+    private FirebaseAuthService.VerifiedFirebaseUser verifyUser(String authorizationHeader) {
+        String token = extractBearerToken(authorizationHeader);
+        if (token == null) {
+            return null;
+        }
+        try {
+            return firebaseAuthService.verifyIdToken(token);
+        } catch (FirebaseAuthException exception) {
+            logger.warn("Portfolio request rejected: Firebase token verification failed", exception);
+            return null;
+        }
+    }
+
+    private String extractBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null) {
+            return null;
+        }
+        String prefix = "Bearer ";
+        if (!authorizationHeader.startsWith(prefix) || authorizationHeader.length() <= prefix.length()) {
+            return null;
+        }
+        return authorizationHeader.substring(prefix.length()).trim();
     }
 
     private PortfolioMetadata toMetadata(PortfolioStore.Portfolio portfolio) {

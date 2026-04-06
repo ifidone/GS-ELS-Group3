@@ -1,5 +1,6 @@
 package com.els.backend.controller;
 
+import com.els.backend.dto.montecarlo.MonteCarloPortfolioRequest;
 import com.els.backend.service.MonteCarloRequest;
 import com.els.backend.service.MonteCarloResponse;
 import com.els.backend.service.MonteCarloService;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/monte-carlo")
-@CrossOrigin(origins = "*") //match CORS setup
+@CrossOrigin(origins = "${app.frontend-origin}")
 public class MonteCarloController {
     private final MonteCarloService monteCarloService;
     public MonteCarloController(MonteCarloService monteCarloService) {
@@ -33,5 +34,10 @@ public class MonteCarloController {
     public ResponseEntity<MonteCarloResponse> simulate(@RequestBody MonteCarloRequest request){
         MonteCarloResponse result = monteCarloService.simulate(request);
         return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/portfolio")
+    public ResponseEntity<MonteCarloResponse> simulatePortfolio(@RequestBody MonteCarloPortfolioRequest request) {
+        return ResponseEntity.ok(monteCarloService.simulatePortfolio(request));
     }
 }

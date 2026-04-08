@@ -22,6 +22,7 @@ Run the backend:
 
 ```bash
 cd backend/backend
+cp .env.example .env
 ./mvnw spring-boot:run
 ```
 
@@ -32,7 +33,8 @@ SERVER_PORT=8081 ./mvnw spring-boot:run
 ```
 
 Notes:
-- If your database credentials change, update them in `backend/backend/src/main/resources/application.properties`.
+- Store backend secrets and resource endpoints in `backend/backend/.env`, not in `src/main/resources/application.properties`.
+- Start from `backend/backend/.env.example` and fill in `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `OPENAI_API_KEY`, and either `FIREBASE_CREDENTIALS` or `FIREBASE_CREDENTIALS_JSON_BASE64`.
 - Flyway creates `flyway_schema_history` and applies migrations on startup.
 
 ## Chat API (OpenAI + MCP)
@@ -69,10 +71,25 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 - `spring.ai.mcp.client.request-timeout` controls MCP tool timeout (default `60s`).
 - `app.chat.enabled` toggles the chat controller (default `true`).
 
-Create `backend/backend/.env`:
+Create `backend/backend/.env` from the example template and set:
 
 ```bash
+DB_URL=jdbc:postgresql://your-db-host:5432/your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
 OPENAI_API_KEY=your_key_here
+```
+
+For Firebase, use one of these:
+
+```bash
+FIREBASE_CREDENTIALS=./gs-els-firebase-adminsdk.json
+```
+
+or store the whole service-account JSON in `.env` as base64:
+
+```bash
+FIREBASE_CREDENTIALS_JSON_BASE64=<base64-encoded-json>
 ```
 
 ## Monte Carlo API

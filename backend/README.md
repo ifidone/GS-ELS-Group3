@@ -194,6 +194,18 @@ Export all calculations and all portfolios for a user:
 }
 ```
 
+## MCP Security Integration
+
+- Backend MCP client connects using:
+  - `MCP_SERVER_ORIGIN` (default `http://localhost:8000`)
+  - `MCP_SERVER_ENDPOINT` (default `/mcp`)
+- Recommended deployment pattern:
+  - keep backend and MCP server on a private network boundary
+  - expose only backend APIs publicly
+- MCP server supports optional `MCP_AUTH_TOKEN` for `/mcp` requests.
+- If you enable `MCP_AUTH_TOKEN` and cannot set custom headers from the MCP client config, set:
+  - `MCP_SERVER_ENDPOINT=/mcp?mcp_token=<MCP_AUTH_TOKEN>`
+
 ## Monte Carlo API
 
 ```

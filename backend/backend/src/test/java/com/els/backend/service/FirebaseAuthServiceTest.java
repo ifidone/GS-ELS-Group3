@@ -9,7 +9,7 @@ class FirebaseAuthServiceTest {
 
     @Test
     void verifyIdToken_withoutCredentials_throwsIllegalState() {
-        FirebaseAuthService service = new FirebaseAuthService("");
+        FirebaseAuthService service = new FirebaseAuthService("", "");
 
         assertThrows(IllegalStateException.class, () -> {
             try {

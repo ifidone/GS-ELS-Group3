@@ -128,6 +128,72 @@ or by storing the whole service-account JSON in `.env` as base64:
 FIREBASE_CREDENTIALS_JSON_BASE64=<base64-encoded-json>
 ```
 
+## Export API (Excel)
+
+```
+POST /api/exports/excel
+```
+
+Returns an `.xlsx` file as an attachment.
+
+Headers:
+
+```
+Authorization: Bearer <firebase_id_token>
+```
+
+Body:
+
+```json
+{
+  "scope": "calculations",
+  "uid": "optional_fallback_uid",
+  "calculationNameQuery": "optional name filter",
+  "portfolioName": "required only when scope=portfolio"
+}
+```
+
+`scope` options:
+- `calculations`: exports filtered saved calculations + time-series sheet.
+- `portfolio`: exports one portfolio summary + its linked calculations.
+- `all`: exports calculations + time-series + portfolio summaries + portfolio items.
+
+Notes:
+- Backend applies filters before generating the file.
+- Prefer `Authorization: Bearer` for identity; `uid` is a fallback for tools/tests.
+- Response content type: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- Response has `Content-Disposition: attachment; filename=...xlsx`.
+
+Postman examples:
+
+Export all calculations for a user:
+
+```json
+{
+  "scope": "calculations",
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
+Export one portfolio and its linked calculations:
+
+```json
+{
+  "scope": "portfolio",
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2",
+  "portfolioName": "Aggressive Growth"
+}
+```
+
+Export all calculations and all portfolios for a user:
+
+```json
+{
+  "scope": "all",
+  "uid": "hwOjPjBhpMPHmO9nJ1USmlP03au2"
+}
+```
+
 ## Monte Carlo API
 
 ```
@@ -237,7 +303,7 @@ GET /api/saved-calculations?name=Retirement
 
 ## Portfolios API
 
-These endpoints use `uid` from the JSON request body (no Firebase verification).
+These endpoints can use Firebase bearer auth and also support `uid` from JSON body as a fallback for tools/tests.
 
 ```
 GET    /api/portfolios?page=0&size=20&sort=createdAt,desc
@@ -387,14 +453,23 @@ The backend must not trust the raw `uid` from the request body alone. The verifi
 
 ### Firebase Credential Configuration
 
-The backend reads the Firebase Admin service-account path from:
+The backend can read Firebase Admin credentials from either:
 
 ```properties
-firebase.credentials.path=${FIREBASE_CREDENTIALS:/absolute/path/to/service-account.json}
+firebase.credentials.path=${FIREBASE_CREDENTIALS:}
+firebase.credentials.json-base64=${FIREBASE_CREDENTIALS_JSON_BASE64:}
 ```
 
 Configured in:
 - `backend/backend/src/main/resources/application.properties`
+
+Typical `.env` values:
+
+```bash
+FIREBASE_CREDENTIALS=./gs-els-firebase-adminsdk.json
+# or
+FIREBASE_CREDENTIALS_JSON_BASE64=<base64-encoded-json>
+```
 
 ### Lazy Firebase Initialization
 

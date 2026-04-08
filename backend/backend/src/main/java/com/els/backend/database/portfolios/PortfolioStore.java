@@ -93,6 +93,29 @@ public class PortfolioStore {
         return jdbcTemplate.query(sql, SUMMARY_ROW_MAPPER, uid, limit, offset);
     }
 
+    public List<PortfolioSummary> listAllSummaries(String uid) {
+        String sql = """
+                select
+                    p.id,
+                    p.uid,
+                    p.name,
+                    p.description,
+                    p.created_at,
+                    p.updated_at,
+                    coalesce(count(sc.id), 0) as calculation_count,
+                    coalesce(sum(sc.initial_investment), 0) as total_principal,
+                    coalesce(sum(sc.future_value), 0) as total_future_value,
+                    coalesce(sum(sc.beta * sc.initial_investment) / nullif(sum(sc.initial_investment), 0), 0) as avg_beta
+                from portfolios p
+                left join portfolio_items pi on pi.portfolio_id = p.id
+                left join saved_calculations sc on sc.id = pi.calculation_id
+                where p.uid = ?
+                group by p.id
+                order by p.created_at desc
+                """;
+        return jdbcTemplate.query(sql, SUMMARY_ROW_MAPPER, uid);
+    }
+
     public Portfolio create(String uid, String name, String description) {
         String sql = """
                 insert into portfolios (

@@ -30,6 +30,8 @@ This document is intentionally structured in two stages:
 This document includes multiple Mermaid diagrams:
 
 - **High-level component architecture** (flowchart).
+- **Layered architecture view** (flowchart).
+- **Frontend authentication + backend sync sequence**.
 - **Chat request sequence** (matching your attached style).
 - **Authentication and user sync sequence**.
 - **Calculation + save flow**.
@@ -55,14 +57,27 @@ The platform persists application data in **PostgreSQL** (schema managed via **F
 
 ## 2. System Context and Architecture
 
-### 2.1 Context Narrative
+### 2.1 Whole-Project Overview
 
-At runtime, a signed-in user interacts with Angular pages (`/dashboard`, `/calculator`, `/portfolios`, chat widget).  
-Frontend sends requests to Spring Boot APIs (`/api/*`).  
-Spring Boot persists and reads from PostgreSQL and, for chat, can call OpenAI via Spring AI with MCP tool callbacks.  
-MCP callbacks are executed through FastMCP, which generally calls Spring Boot REST endpoints (and in legacy form can query DB directly).
+GS-ELS-Group3 (Group 3) follows a layered architecture with clear ownership boundaries:
 
-### 2.2 High-Level Architecture Diagram
+- **Presentation Layer (Angular)**: routing, UI rendering, auth UX, and API orchestration.
+- **Application Layer (Spring Boot)**: business logic, validation, authorization checks, domain workflows, and response shaping.
+- **Tooling Layer (FastMCP)**: structured tool interface for AI-driven workflows.
+- **Data Layer (PostgreSQL on Google Cloud)**: system of record for users, calculations, funds, and portfolios.
+
+Authentication is handled by Firebase (identity provider), while the backend and PostgreSQL remain the authoritative source for application data.
+
+### 2.2 Runtime Context Narrative
+
+1. User interacts with Angular routes (`/`, `/auth`, `/dashboard/*`).
+2. Frontend authenticates through Firebase and receives an ID token.
+3. Frontend calls Spring Boot APIs under `/api/*` (direct or via local dev proxy).
+4. Spring Boot verifies auth tokens, executes business logic, and reads/writes PostgreSQL.
+5. For chat, Spring Boot uses OpenAI (Spring AI) and executes tool calls through FastMCP.
+6. FastMCP tools call backend REST APIs and return normalized tool results.
+
+### 2.3 High-Level Architecture Diagram
 
 ```mermaid
 flowchart LR
@@ -79,122 +94,234 @@ flowchart LR
     FE -->|/api/*| BE
     FE -->|Firebase Sign-in| FB
 
-    BE --> DB
-    BE --> FB
-    BE --> NA
-    BE --> OA
-    OA -->|Tool Calls| MCP
-    MCP -->|REST calls| BE
-    MCP -. legacy only .-> DB
+    BE -->|verify token| FB
+    BE -->|CRUD + queries| DB
+    BE -->|market analytics| NA
+    BE -->|chat completion| OA
+    OA -->|tool calls| MCP
+    MCP -->|REST tool operations| BE
+    MCP -. legacy path only .-> DB
 ```
 
-### 2.3 Bounded Responsibilities
+### 2.4 Layered Architecture View
 
-- **Frontend**: View rendering, auth UX, route protection, API consumption, client-side history persistence for chat UI.
-- **Backend**: Source of truth for business logic and persistence rules.
-- **MCP**: Tool interface and normalization layer for chat tool execution.
-- **Database**: Durable storage for users, calculations, funds, portfolios, and linking relationships.
+```mermaid
+flowchart TB
+    P[Presentation: Angular SPA]
+    A[Application: Spring Boot APIs]
+    T[Tooling: FastMCP]
+    D[Data: PostgreSQL]
+    I[Identity: Firebase]
+    X[External Analytics + LLM]
+
+    P --> A
+    P --> I
+    A --> D
+    A --> I
+    A --> X
+    X --> T
+    T --> A
+```
+
+### 2.5 Service Responsibility Matrix
+
+- **Angular frontend**: standalone components, route guards, Firebase session handling, request composition, user-focused error handling.
+- **Spring Boot backend**: endpoint contract, request validation, UID ownership checks, projection/portfolio/chat orchestration, export generation.
+- **FastMCP server**: tool registration, input normalization, backend API invocation, tool-safe response handling.
+- **PostgreSQL**: relational persistence with Flyway-managed schema and UID-scoped data ownership.
+- **Google Cloud runtime**: infrastructure hosting context for database and deployed services.
 
 ---
 
 ## 3. Frontend (Angular) Technical Documentation
 
-### 3.1 Technology and Build
+### 3.1 Frontend Overview
 
-- Angular 21.1.5 standalone architecture.
-- AngularFire + Firebase SDK for auth.
-- HttpClient with fetch adapter.
-- SSR-capable setup with Node/Express server.
-- Dev proxy for API:
-  - `/api` -> `http://127.0.0.1:8080` (`proxy.conf.json`).
+The frontend is a single-page Angular application that manages navigation, authentication UX, and feature interaction for calculator, portfolios, and chat.
 
-### 3.2 Route Model and Access Rules
+Separation of concerns:
 
-Routes:
+- **Firebase Auth** identifies the user (login, signup, Google sign-in).
+- **Spring Boot + PostgreSQL** remains the source of truth for business data.
+- **Angular frontend** handles presentation, route protection, and request orchestration.
 
-- `/` -> Landing page.
-- `/auth` -> Login/Signup page.
-- `/dashboard` -> Protected shell.
-  - `/dashboard` -> Overview.
-  - `/dashboard/calculator` -> Calculator.
-  - `/dashboard/portfolios` -> Portfolios.
+Primary user journey:
 
-Guards:
+- Public landing page -> authentication -> protected dashboard.
+- Authenticated users can run projections/simulations, manage portfolios, and use the chatbot.
 
-- `authGuard`: allows route only when Firebase current user exists on browser.
-- `publicOnlyGuard`: redirects authenticated users away from `/` and `/auth` to `/dashboard`.
+### 3.2 Technology Stack
 
-### 3.3 Frontend Route Access State Diagram
+- Framework: Angular `21.1.5` with standalone components.
+- Language: TypeScript.
+- Routing: Angular Router with functional guards.
+- Auth: `@angular/fire` + Firebase Authentication.
+- HTTP: Angular `HttpClient` with `withFetch()`.
+- Reactive model: Angular signals (`signal`, `effect`) plus RxJS streams.
+- Runtime/build: Angular CLI (`@angular/build`) with SSR-capable output mode and Express server entry.
+- Dev proxy: `/api/*` forwarded to `http://127.0.0.1:8080` via `proxy.conf.json`.
+
+### 3.3 Frontend Project Structure
+
+Frontend root: `frontend/`
+
+Key files:
+
+- `frontend/package.json`: scripts, Angular/Firebase dependencies.
+- `frontend/angular.json`: build/serve/test targets, SSR output mode, proxy config.
+- `frontend/src/main.ts`: browser bootstrap entrypoint.
+- `frontend/src/app/app.config.ts`: providers for router, hydration, Firebase app/auth, and HttpClient.
+- `frontend/src/app/app.routes.ts`: route table and guard bindings.
+- `frontend/src/app/app.ts`: root component, router outlet, floating chatbot visibility control.
+- `frontend/src/app/core/auth.facade.ts`: Firebase auth facade + optional backend sync.
+- `frontend/src/app/core/auth.guards.ts`: `authGuard` and `publicOnlyGuard`.
+- `frontend/src/environment.ts`: `apiBaseUrl` and `enableBackendAuthSync`.
+- `frontend/src/firebase-config.ts`: Firebase project configuration.
+- `frontend/proxy.conf.json`: local `/api` proxy target.
+
+Feature modules under `frontend/src/app/pages/`:
+
+- `landing`
+- `auth-page`
+- `dashboard-shell`
+- `dashboard-home`
+- `calculator`
+- `portfolios`
+- `chatbot`
+
+### 3.4 Routing and Access Control
+
+Public-only routes (`publicOnlyGuard`):
+
+- `/`
+- `/auth`
+
+Protected routes (`authGuard`):
+
+- `/dashboard`
+- `/dashboard/calculator`
+- `/dashboard/portfolios`
+
+Fallback:
+
+- `**` -> `/`
+
+### 3.5 Frontend Route Access State Diagram
 
 ```mermaid
 stateDiagram-v2
     [*] --> PublicRoute
-    PublicRoute --> Authenticated : Firebase user available
-    Authenticated --> ProtectedRoute : authGuard pass
-    ProtectedRoute --> PublicRoute : logout
     PublicRoute --> LoginPage : /auth
     LoginPage --> Authenticated : login/signup success
+    PublicRoute --> Authenticated : existing Firebase session
+    Authenticated --> ProtectedRoute : authGuard pass
+    ProtectedRoute --> PublicRoute : logout
     Authenticated --> Dashboard : redirect /dashboard
 ```
 
-### 3.4 Authentication Flow (Frontend Perspective)
+### 3.6 Authentication and Backend Sync Flow
 
-- User logs in via Firebase (email/password or Google).
-- `AuthFacade` listens to auth state.
-- On authenticated user:
-  - obtains ID token,
-  - calls backend `/api/auth/sync` with Bearer token and UID payload.
+```mermaid
+sequenceDiagram
+    participant User
+    participant FE as Angular Frontend
+    participant FA as Firebase Auth
+    participant AF as AuthFacade
+    participant BE as Spring Boot /api/auth/sync
 
-### 3.5 Feature Modules
+    User->>FE: Login/Signup/Google action
+    FE->>FA: Authenticate
+    FA-->>AF: Auth state update + user
+    AF->>AF: Update authReady/currentUser signals
+    AF->>BE: POST /api/auth/sync (Bearer token + uid)
+    BE-->>AF: syncStatus
+    AF-->>FE: authenticated UI state
+```
 
-#### Landing
+### 3.7 Feature Responsibilities
 
-- Marketing and educational content.
-- Topic chips mimic assistant explanations pre-auth.
+- **Landing**: public-facing introduction and pre-auth experience.
+- **Auth page**: email/password and Google sign-in flows with Firebase error handling.
+- **Dashboard shell**: protected navigation, user identity display, logout action.
+- **Calculator**:
+  - projection and compare modes,
+  - deterministic and Monte Carlo views,
+  - shorthand amount parsing (`k/m/b`),
+  - saved calculations integration.
+- **Portfolios**:
+  - portfolio CRUD,
+  - add/remove calculation links,
+  - available-calculation lookup,
+  - AI portfolio generation and simulation handoff.
+- **Chatbot**:
+  - floating UI component,
+  - per-user local storage history (`chat_history_<uid>`, capped to last 10),
+  - backend chat API call with request timeout handling.
 
-#### Dashboard Shell
+### 3.8 Frontend API Integration Map
 
-- Top navigation.
-- User identity panel (avatar/initial + email).
-- Logout action.
+Authentication:
 
-#### Calculator
+- `POST /api/auth/sync`
 
-- Single projection mode.
-- Two-fund comparison mode.
-- Deterministic and Monte Carlo views.
-- Input parsing including shorthand formats (k/m/b).
-- Saved history integration (`/api/calculations`).
-- Optional portfolio simulation handoff from portfolios page.
+Calculator and funds:
 
-#### Portfolios
+- `POST /api/calculator/project`
+- `GET /api/funds`
+- `POST /api/monte-carlo`
+- `POST /api/monte-carlo/portfolio`
 
-- CRUD for portfolios.
-- Add/remove saved calculations per portfolio.
-- Load available calculations not linked.
-- AI portfolio modal:
-  - Generate from backend.
-  - Simulate in calculator.
-  - Persist generated composition as portfolio + calculations + links.
+Saved calculations:
 
-#### Chatbot
+- `GET /api/calculations`
+- `POST /api/calculations`
+- `DELETE /api/calculations/{id}`
 
-- Floating widget (hidden on landing).
-- Per-user localStorage history (up to 10 messages).
-- Sends `message + uid + history` to `/api/chat`.
-- Includes timeout and robust user-facing failure messages.
+Portfolios:
 
-### 3.6 Frontend-to-Backend Calls (Primary)
+- `GET /api/portfolios`
+- `POST /api/portfolios`
+- `GET /api/portfolios/{name}`
+- `PATCH /api/portfolios/{name}`
+- `DELETE /api/portfolios/{name}`
+- `PUT /api/portfolios/{name}/items/{calculationId}`
+- `DELETE /api/portfolios/{name}/items/{calculationId}`
+- `GET /api/portfolios/{name}/available-calculations`
+- `POST /api/ai-portfolio/generate`
 
-- `/api/auth/sync`
-- `/api/calculator/project`
-- `/api/calculations`, `/api/calculations/{id}`
-- `/api/saved-calculations`, `/api/saved-calculations/{id}`
-- `/api/funds`, `/api/funds/{ticker}`
-- `/api/portfolios` + subroutes
-- `/api/monte-carlo`, `/api/monte-carlo/portfolio`
-- `/api/ai-portfolio/generate`
-- `/api/chat`
+Chat:
+
+- `POST /api/chat`
+
+### 3.9 Frontend Build, Run, and Configuration
+
+Prerequisites:
+
+- Node.js compatible with Angular 21 (Node `20.19+` or `22.12+`).
+- npm (project uses `npm@11.10.0`).
+- Backend running at `http://127.0.0.1:8080` for API-backed features.
+
+Local startup:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Important scripts:
+
+- `npm start` / `npm run dev`: run dev server.
+- `npm run build`: production build.
+- `npm run watch`: development build watch mode.
+- `npm test`: frontend unit tests.
+
+### 3.10 Frontend Reliability Notes
+
+- Route guards control navigation but do not replace backend auth verification.
+- Backend remains responsible for token verification and UID-scoped authorization.
+- Dev proxy (`proxy.conf.json`) removes local CORS friction for `/api/*`.
+- Chat and simulation calls use request timeouts to avoid indefinite loading states.
 
 ---
 

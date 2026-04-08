@@ -1,4 +1,4 @@
-# GS-ELS-Group3
+# GS-ELS-Group3 Backend
 
 ## Backend Features
 
@@ -7,33 +7,71 @@
 - `/api/chat` endpoint that uses OpenAI (Spring AI) with MCP tool calling.
 - MCP client connects to the FastMCP server for tool execution.
 
-## Backend Database Setup
+## Local Setup
 
 The backend now uses PostgreSQL with Flyway migrations.
 
 Key files:
 - `backend/backend/pom.xml` includes `spring-boot-starter-jdbc`, `flyway-core`, `flyway-database-postgresql`, and `postgresql`.
-- `backend/backend/src/main/resources/application.properties` contains the datasource and Flyway configuration.
+- `backend/backend/src/main/resources/application.properties` contains the runtime configuration and env bindings.
 - `backend/backend/src/main/resources/db/migration/V1__create_users_table.sql` creates the `users` table.
 - `backend/backend/src/main/resources/db/migration/V2__create_saved_calculations_table.sql` creates the `saved_calculations` table.
 - `backend/backend/src/main/resources/db/migration/V11__add_time_series_to_saved_calculations.sql` adds `time_series` JSONB for yearly values.
 
-Run the backend:
+### 1. Create the local env file
+
+```bash
+cd backend/backend
+cp .env.example .env
+```
+
+Required values in `.env`:
+
+```bash
+DB_URL=jdbc:postgresql://your-db-host:5432/your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
+OPENAI_API_KEY=your_key_here
+```
+
+For Firebase, use one of these:
+
+```bash
+FIREBASE_CREDENTIALS=./firebase-adminsdk.json
+```
+
+or:
+
+```bash
+FIREBASE_CREDENTIALS_JSON_BASE64=<base64-encoded-json>
+```
+
+### 2. Run the backend
 
 ```bash
 cd backend/backend
 ./mvnw spring-boot:run
 ```
 
-If port 8080 is in use:
+If port `8080` is already in use:
 
 ```bash
 SERVER_PORT=8081 ./mvnw spring-boot:run
 ```
 
-Notes:
-- If your database credentials change, update them in `backend/backend/src/main/resources/application.properties`.
+To see what is using port `8080`:
+
+```bash
+lsof -i :8080
+```
+
+### Notes
+
+- Store backend secrets and resource endpoints in `backend/backend/.env`, not in `src/main/resources/application.properties`.
+- Start from `backend/backend/.env.example` and fill in `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `OPENAI_API_KEY`, and either `FIREBASE_CREDENTIALS` or `FIREBASE_CREDENTIALS_JSON_BASE64`.
+- `.env` is gitignored, but it is still plain text. Base64 is not encryption.
 - Flyway creates `flyway_schema_history` and applies migrations on startup.
+- Backend exception messages are not exposed to clients by default because `server.error.include-message=never`.
 
 ## Chat API (OpenAI + MCP)
 
@@ -69,10 +107,25 @@ Configuration (in `backend/backend/src/main/resources/application.properties`):
 - `spring.ai.mcp.client.request-timeout` controls MCP tool timeout (default `60s`).
 - `app.chat.enabled` toggles the chat controller (default `true`).
 
-Create `backend/backend/.env`:
+Chat requires these `.env` values:
 
 ```bash
+DB_URL=jdbc:postgresql://your-db-host:5432/your-db-name
+DB_USERNAME=your-db-user
+DB_PASSWORD=your-db-password
 OPENAI_API_KEY=your_key_here
+```
+
+Firebase can be configured either by path:
+
+```bash
+FIREBASE_CREDENTIALS=./gs-els-firebase-adminsdk.json
+```
+
+or by storing the whole service-account JSON in `.env` as base64:
+
+```bash
+FIREBASE_CREDENTIALS_JSON_BASE64=<base64-encoded-json>
 ```
 
 ## Monte Carlo API

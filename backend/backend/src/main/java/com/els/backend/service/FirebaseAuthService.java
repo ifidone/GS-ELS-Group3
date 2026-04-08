@@ -9,16 +9,21 @@ import com.google.firebase.auth.FirebaseToken;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Base64;
 
 @Service
 public class FirebaseAuthService {
 
     private final String firebaseCredentialsPath;
+    private final String firebaseCredentialsJsonBase64;
 
-    public FirebaseAuthService(@Value("${firebase.credentials.path:}") String firebaseCredentialsPath) {
+    public FirebaseAuthService(@Value("${firebase.credentials.path:}") String firebaseCredentialsPath,
+                               @Value("${firebase.credentials.json-base64:}") String firebaseCredentialsJsonBase64) {
         this.firebaseCredentialsPath = firebaseCredentialsPath;
+        this.firebaseCredentialsJsonBase64 = firebaseCredentialsJsonBase64;
     }
 
     private synchronized void initializeFirebaseAppIfNeeded() {
@@ -26,24 +31,35 @@ public class FirebaseAuthService {
             return;
         }
 
-        if (firebaseCredentialsPath == null || firebaseCredentialsPath.isBlank()) {
+        if ((firebaseCredentialsJsonBase64 == null || firebaseCredentialsJsonBase64.isBlank())
+                && (firebaseCredentialsPath == null || firebaseCredentialsPath.isBlank())) {
             throw new IllegalStateException(
                     "Firebase credentials are not configured. " +
-                            "Set GOOGLE_APPLICATION_CREDENTIALS and run with the local Spring profile."
+                            "Set FIREBASE_CREDENTIALS_JSON_BASE64 or FIREBASE_CREDENTIALS."
             );
         }
 
         try {
+            GoogleCredentials credentials = loadCredentials();
             FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(new FileInputStream(firebaseCredentialsPath)))
+                    .setCredentials(credentials)
                     .build();
             FirebaseApp.initializeApp(options);
         } catch (IOException exception) {
             throw new IllegalStateException(
-                    "Failed to initialize Firebase Admin SDK using firebase.credentials.path=" + firebaseCredentialsPath,
+                    "Failed to initialize Firebase Admin SDK using configured Firebase credentials.",
                     exception
             );
         }
+    }
+
+    private GoogleCredentials loadCredentials() throws IOException {
+        if (firebaseCredentialsJsonBase64 != null && !firebaseCredentialsJsonBase64.isBlank()) {
+            byte[] decoded = Base64.getDecoder().decode(firebaseCredentialsJsonBase64);
+            return GoogleCredentials.fromStream(new ByteArrayInputStream(decoded));
+        }
+
+        return GoogleCredentials.fromStream(new FileInputStream(firebaseCredentialsPath));
     }
 
     public VerifiedFirebaseUser verifyIdToken(String idToken) throws FirebaseAuthException {

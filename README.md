@@ -1,4 +1,34 @@
-# GS-ELS-Group3 (Group 3) Technical Documentation
+# Group-3 Technical Solution Documentation
+
+*GS-ELS-Group3 | Technical documentation, architecture, and implementation guide*
+
+| Field | Details |
+| --- | --- |
+| Repository | [https://github.com/ifidone/GS-ELS-Group3](https://github.com/ifidone/GS-ELS-Group3) |
+| Demo video | [https://www.youtube.com/watch?v=YFyNY46obnU](https://www.youtube.com/watch?v=YFyNY46obnU) |
+
+---
+
+## Team
+
+**Team Members**
+1. Allison Casey
+2. Dipesh Pandit
+3. Dylan Tang
+4. Grace Wu
+5. Irene Fidone
+6. Leela Arvapalli
+7. Shriya Kalyan
+
+**Mentors**
+1. Ty Herring
+2. Daniel Kang
+
+---
+
+## Outline (Preview)
+
+A concise preview is below. The full outline and diagram index follow in Section 0.
 
 ---
 
@@ -1109,6 +1139,3 @@ Validation: Confirms active collaboration workflow, tracked change history, and 
 
 The attached Postman, pgAdmin, Google Cloud, and GitKraken screenshots collectively demonstrate successful implementation, execution, collaboration, and persistence of major GS-ELS-Group3 (Group 3) workflows.  
 Each evidence artifact is traceable to a specific test case and requirement, and results were validated against both API responses and database state.
-
-Final submission demo video:  
-https://www.youtube.com/watch?v=YFyNY46obnU
